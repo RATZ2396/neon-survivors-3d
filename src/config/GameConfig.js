@@ -272,6 +272,16 @@ export const CONFIG = {
   },
 
   DEV: {
-    SHOW_DEBUG_PANEL: true,
+    /**
+     * El panel de diagnóstico es una herramienta de desarrollo, no parte del
+     * juego: en producción tapa la esquina de la pantalla con números que a un
+     * jugador no le dicen nada. Se ata al modo de Vite en lugar de a un `true`
+     * escrito a mano, porque un `true` a mano se olvida encendido y termina
+     * publicado — que es exactamente lo que pasó.
+     *
+     * El `?.` no es decorativo: los tests corren en Node, donde
+     * `import.meta.env` no existe.
+     */
+    SHOW_DEBUG_PANEL: import.meta.env?.DEV ?? false,
   },
 }
