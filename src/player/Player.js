@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config/GameConfig.js'
+import { SoldierModel } from './SoldierModel.js'
 
 /**
  * Player — movimiento y representación del jugador.
@@ -37,31 +38,20 @@ export class Player {
   }
 
   /**
-   * Placeholder procedural. Los .glb del proyecto anterior se borraron;
-   * cuando se incorporen modelos reales, esto se reemplaza en la Parte B
-   * sin tocar la lógica de movimiento.
+   * El jugador es un soldado procedural (ver SoldierModel.js), no un asset: se
+   * genera por código, así que no hay .glb que versionar ni pipeline de
+   * exportación que mantener.
+   *
+   * El modelo se agrega a un grupo intermedio en vez de usarse directo como
+   * `mesh`: la posición y la rotación del jugador las escribe la lógica de
+   * movimiento sobre ese grupo, y el modelo anima adentro. Así la animación no
+   * puede pisar el movimiento ni al revés — que es exactamente el tipo de
+   * acoplamiento que el GDD §1 prohíbe.
    */
   _buildMesh(radius, height) {
     const group = new THREE.Group()
-
-    const bodyHeight = height - radius * 2
-    const body = new THREE.Mesh(
-      new THREE.CapsuleGeometry(radius, bodyHeight, 6, 12),
-      new THREE.MeshStandardMaterial({ color: 0x39d0ff, roughness: 0.5, metalness: 0.1 }),
-    )
-    body.position.y = height / 2
-    group.add(body)
-    this._body = body // se le cambia el emisivo al recibir daño
-
-    // Marcador de orientación: sobresale hacia -Z, que es "adelante".
-    const nose = new THREE.Mesh(
-      new THREE.ConeGeometry(radius * 0.45, radius * 1.1, 8),
-      new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.4 }),
-    )
-    nose.rotation.x = -Math.PI / 2
-    nose.position.set(0, height * 0.62, -radius * 1.1)
-    group.add(nose)
-
+    this.model = new SoldierModel({ height })
+    group.add(this.model.object3D)
     return group
   }
 
@@ -74,6 +64,9 @@ export class Player {
     this._updateFacing(delta, move)
 
     this.mesh.position.copy(this.position)
+    // La animación se alimenta SOLO de lo que ya decidió el movimiento: no
+    // vuelve a leer el input ni corrige la posición.
+    this.model.update(delta, this.currentSpeed, this.isMoving)
     this._updateHitFlash()
   }
 
@@ -104,6 +97,7 @@ export class Player {
     this.hp = this.maxHp
     this.isDead = false
     this.invulnTimer = 0
+    this.model.reset()
   }
 
   /** Orienta el mesh de golpe (lo usa el arma al disparar estando quieto). */
@@ -112,15 +106,17 @@ export class Player {
     this.mesh.rotation.y = angle
   }
 
+  /** Patada del arma. La llama WeaponSystem al disparar. */
+  recoil(strength = 1) {
+    this.model.recoil(strength)
+  }
+
   /**
-   * Parpadeo durante la invulnerabilidad. Es la única señal de que recibiste un
-   * golpe hasta que exista el HUD (Parte G), y sin ella no se entiende por qué
-   * baja la vida.
+   * Destello rojo durante la invulnerabilidad. Refuerza al HUD: la barra de
+   * vida dice cuánto perdiste, esto dice en qué instante.
    */
   _updateHitFlash() {
-    const hit = this.invulnTimer > 0
-    this._body.material.emissive.setHex(hit ? 0xff2244 : 0x000000)
-    this._body.material.emissiveIntensity = hit ? 0.9 : 0
+    this.model.setHit(this.invulnTimer > 0)
   }
 
   _handleMovement(delta, move) {

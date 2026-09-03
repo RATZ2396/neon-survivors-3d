@@ -237,8 +237,10 @@ Cada una tiene: qué se hace, de qué depende, cuándo se considera terminada. P
 ### 6.2 Qué hacer con la arquitectura modular no conectada
 `src/core/`, `src/entities/`, `src/managers/`, etc. (~9500 líneas muertas) — ¿se descartan y la Parte correspondiente se escribe desde cero siguiendo §3, o vale la pena revisar archivo por archivo por si hay lógica rescatable antes de borrar?
 
-### 6.3 Personaje: GLTF animado vs. placeholder
+### 6.3 Personaje: GLTF animado vs. placeholder — RESUELTA
 Ya existe `Character.glb` + `Idle.glb` + `Run.glb` con Draco. ¿Se mantiene el personaje humanoide con skinning, o —dado lo que vimos en el prototipo anterior sobre el costo de animación por esqueleto a escala— se simplifica el *enemigo* (no el jugador, que es uno solo) a algo sin skinning para poder escalar la horda?
+
+**Resuelta: ninguna de las dos.** El jugador es un soldado **generado por código** (`SoldierModel.js` + `SoldierAtlas.js`), sin `.glb` y sin skinning: cada hueso es un mesh rígido. Cuesta ~13 draw calls y un material. La horda no cambia y sigue costando 1 draw call para 400 enemigos. Si aparece una cámara de cerca donde se note la falta de deformación, se reemplaza por un GLTF con skinning sin tocar `Player.js`.
 
 ### 6.4 Orden de trabajo
 Recomiendo A → B → C → D como núcleo jugable mínimo (sin esto no hay juego que probar), con G y H en paralelo desde el día 1 porque no dependen de nada. E, F, I, J, K vienen después del núcleo.

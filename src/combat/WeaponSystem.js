@@ -166,6 +166,10 @@ export class WeaponSystem {
     // le pegara de espaldas.
     if (!this.player.isMoving) this.player.faceTowards(baseAngle)
 
+    // Patada del arma. Es la señal de que estás disparando: sin ella el soldado
+    // se ve inmóvil aunque salgan balas.
+    this.player.recoil(1)
+
     return true
   }
 }

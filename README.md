@@ -79,6 +79,8 @@ src/
 │   └── GameManager.js            escena, luces, loop, estados
 ├── player/
 │   ├── Player.js                 movimiento y orientación
+│   ├── SoldierModel.js           el soldado: geometría, rig y marcha
+│   ├── SoldierAtlas.js           su textura, generada por código
 │   └── CameraController.js       cámara 3ra persona world-locked
 ├── enemies/
 │   ├── EnemyManager.js           la horda entera: datos + InstancedMesh
@@ -132,7 +134,7 @@ Ninguna de esas cosas requiere tocar lógica de simulación. Ese es el punto.
 | Parte (GDD_v2 §4) | Estado |
 |---|---|
 | **A — Core loop, input y movimiento** | ✅ Completa y verificada |
-| B — Player y cámara (animaciones) | ⬜ Base puesta; falta modelo animado |
+| **B — Player y cámara (animaciones)** | ✅ Completa y verificada |
 | **C — Enemigos, spawner, oleadas** | ✅ Completa y verificada |
 | **D — Armas y combate** | ✅ Completa y verificada |
 | **E — Skills y progresión** | ✅ Completa y verificada |
@@ -154,6 +156,28 @@ Medido en navegador ejecutando el juego real (no estimado). Reproducible desde l
 | Diagonal vs ortogonal | ratio **1.000** — la diagonal no es más rápida |
 | Deslizamiento al soltar la tecla | **0.00000 u** — frenado instantáneo |
 | Rendimiento | 60 FPS · 16.7 ms · 4 draw calls · 330 tris |
+
+### Verificación de la Parte B
+
+**El personaje es código, no un asset.** `SoldierModel.js` genera la geometría y `SoldierAtlas.js` pinta la textura en un canvas: no hay `.glb` que versionar, ni pipeline de exportación, ni binarios en el repo. Se tunea editando las medidas del rig.
+
+La animación es **rígida por hueso, sin skinning**. A la altura de cámara del juego (y=11, FOV 55) no se ve un codo doblándose: se ve la silueta. El costo es 1 draw call por hueso; el beneficio es que no hace falta esqueleto exportado. Si alguna vez hay cámara de cerca, se cambia por un GLTF con skinning y `Player.js` no se entera.
+
+| Criterio | Medición |
+|---|---|
+| Costo | **~13 draw calls** y 7491 triángulos para el jugador entero, con **un solo material** |
+| Rendimiento | **60 fps** con 400 enemigos encima, 18 draw calls en total |
+| Sin asignaciones | pendiente de heap **37 KB/s** en 10 s de carga máxima (ruido de GC) |
+| Marcha | la cadencia sale de la velocidad con zancada fija: **no patina** |
+| Frenado | el juego corta en seco, pero la amplitud del ciclo se apaga en ~0.15 s: medido **1 → 0** sin tirón |
+| Brazos | IK de dos huesos — las manos siguen al fusil, no al revés |
+| Retroceso | `WeaponSystem` llama a `player.recoil()` al disparar; decae solo |
+| Golpe | destello `#ff2244` mientras dura la invulnerabilidad, negro al terminar |
+| Reinicio | ciclo, amplitud, retroceso y destello vuelven a cero |
+
+**Movimiento y animación no se pisan.** El modelo se cuelga de un grupo intermedio: la lógica de movimiento escribe posición y rotación en ese grupo, y el modelo anima adentro leyendo solo `currentSpeed` e `isMoving` — valores que el movimiento ya decidió. La animación no vuelve a leer el input ni corrige la posición, que es el acoplamiento que el GDD §1 prohíbe.
+
+**Cómo llegó acá:** estos dos archivos ya existían en `src/player/` desde el 2 de septiembre y **nadie los importaba** — 41 KB de código muerto, exactamente el anti-patrón que documenta el GDD §0.2. Estaban escritos para encajar con `Player.js`, así que conectarlos fue reemplazar `_buildMesh()` y agregar tres llamadas.
 
 ### Verificación de la Parte C
 
@@ -259,7 +283,7 @@ También apareció acá algo que no era del boss: al reiniciar, la cámara **int
 
 ## Decisiones abiertas
 
-Siguen pendientes de `GDD_v2.md` §6:
+Sigue pendiente de `GDD_v2.md` §6:
 
 - **§6.1 Estilo visual**: hoy hay un placeholder neutro (fondo oscuro + grilla + niebla). Falta decidir entre *daylight brillante* y *neón oscuro*.
-- **§6.3 Personaje**: los `.glb` del proyecto anterior se borraron. Hoy el jugador es una cápsula procedural con un marcador de orientación.
+- **§6.3 Personaje**: **resuelta.** El jugador es un soldado procedural generado por código (ver "Verificación de la Parte B"). No hay `.glb` que versionar. Si algún día hace falta una cámara de cerca, se reemplaza por un GLTF con skinning sin tocar `Player.js`.
