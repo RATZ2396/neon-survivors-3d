@@ -10,27 +10,28 @@ import { ENEMY_TYPE } from './EnemyDefs.js'
  * Un boss nuevo son dos filas: el arquetipo en ENEMY_DEFS y el comportamiento
  * acá. No una clase.
  *
- * Las dos habilidades están pensadas contra el problema real del género: un
- * enemigo lento y grande es trivial, alcanza con caminar hacia atrás. La
- * embestida castiga al que camina en línea recta; el golpe de área castiga al
- * que se queda pegado disparando.
+ * Las habilidades son OPCIONALES. Un boss sin `charge` o sin `slam` en su fila
+ * simplemente no usa esa habilidad: el BossController lo consulta antes de
+ * ejecutarla. Quitarle un ataque a un boss es borrar una clave de esta tabla,
+ * no tocar código.
+ *
+ * EL PROBLEMA DEL GÉNERO, que estas habilidades atacan: un enemigo lento y
+ * grande es trivial, alcanza con caminar hacia atrás. El golpe de área castiga
+ * al que se queda pegado disparando. La embestida castigaba al que camina en
+ * línea recta — pero se le sacó al Cube King por decisión de diseño: que algo
+ * te salte encima a seis veces su velocidad se siente injusto aunque avise, y
+ * en un juego donde lo único que controlás es moverte, el ataque que te
+ * persigue a más velocidad de la que podés correr no deja jugar, deja aguantar.
+ *
+ * El bloque `charge` sigue soportado y probado (ver tests/index.js): un boss
+ * futuro puede volver a activarlo agregando la clave.
  */
 export const BOSS_DEFS = [
   {
     key: 'CUBE_KING',
     enemyType: ENEMY_TYPE.BOSS,
 
-    charge: {
-      /** Segundos entre embestidas. */
-      every: 6.5,
-      /** Aviso previo: se frena y parpadea. Sin esto la embestida es injusta. */
-      telegraph: 0.85,
-      /** Velocidad durante la embestida (la normal es 2.3). */
-      speed: 15,
-      duration: 1.0,
-      /** Color del parpadeo de aviso. */
-      warnColor: 0xff4d6d,
-    },
+    // Sin `charge`: el Cube King no embiste. Ver el comentario de arriba.
 
     slam: {
       /** Segundos entre golpes de área. */

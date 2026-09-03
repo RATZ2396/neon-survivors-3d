@@ -275,11 +275,19 @@ Dos decisiones que valen la pena registrar:
 | Aparición | a los **60 s**, a 22 u del jugador, 5000 HP, radio 2.6 |
 | "Limpia la arena" | la basura muere **soltando sus gemas** — el duelo empieza limpio y el jugador cobra lo ganado |
 | Spawner durante el duelo | intervalo **×2.5** más lento; vuelve a ×1 al morir el boss |
-| Embestida | aviso 0.85 s con velocidad **0** → embestida a **15 u/s** durante 1.0 s → vuelve a 2.3 |
+| Embestida | **quitada por decisión de diseño** — ver abajo |
 | Golpe de área | anillo en el piso 0.55 s antes, **30 de daño** en radio 5.5, en la posición donde empezó (no sigue al boss) |
 | Daño recibido | lo matan las armas y las skills por el camino normal, sin código especial |
 | Al morir | barra oculta · spawner normalizado · gema de **120 xp** · próximo a los **180 s con 9000 HP** |
 | No lo empuja la horda | `heavy: 1` — la separación no lo mueve y la multitud no lo bloquea |
+
+**La embestida se le sacó al Cube King.** Que algo te salte encima a seis veces su velocidad se siente injusto aunque avise: en un juego donde lo único que controlás es moverte, un ataque que te persigue más rápido de lo que podés correr no te deja jugar, te deja aguantar.
+
+Se sacó **borrando la clave `charge` de su fila en `BossDefs.js`**, no borrando código. Las habilidades del boss son opcionales y el controlador las consulta antes de ejecutarlas, así que un boss futuro la vuelve a activar agregando la clave. Para que "sigue soportada" no sea una promesa vacía, hay un test que arma un boss con embestida y verifica la máquina de estados completa: aviso con velocidad 0 → embestida a la velocidad de la tabla → vuelta a la normal.
+
+**La consecuencia, medida y no estimada:** el boss quedó **completamente esquivable**. Caminando siempre en dirección opuesta durante 25 s: **0 golpes recibidos, 0 de vida perdida**. A 2.3 u/s no puede alcanzar a un jugador que corre a 6.0, y el golpe de área nunca llega a dispararse porque su alcance es 6 u. Peleando de cerca —caminando en círculo alrededor suyo— sí cobra: 70 de vida en los mismos 25 s.
+
+Es decir: el duelo pasó de "esquivá la embestida" a "¿te animás a acercarte?". Si se quiere que acercarse no sea opcional, la palanca es `ENEMY_DEFS.BOSS.speed`: subirla de 2.3 a ~4.6 lo hace insistente sin que nunca te salte encima — seguís pudiendo escapar, pero ya no podés frenarte a resolver la horda.
 
 **Un dato de balance que conviene mirar:** con un arsenal realista del minuto 1 (3 armas + escudo orbital nivel 2, sin mejoras de daño) el jugador hace **~140 dps sobre el boss**, así que los 5000 HP que especifica el GDD v1 son **~36 segundos** de duelo. Es jugable, pero largo para el género. El número quedó como lo especifica el GDD; si se quiere acortar, es `ENEMY_DEFS.BOSS.hp` — entre 2500 y 3000 daría un duelo de 18-21 s.
 

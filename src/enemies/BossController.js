@@ -134,7 +134,7 @@ export class BossController {
     this.hp = this.maxHp
     this.name = enemyDef.name
 
-    this._chargeTimer = def.charge.every
+    this._chargeTimer = def.charge ? def.charge.every : 0
     this._slamTimer = def.slam.every
     this._chargeState = ''
 
@@ -160,8 +160,11 @@ export class BossController {
     this.lastZ = this.enemies.posZ[i]
 
     const def = BOSS_DEFS[0]
-    this._updateCharge(delta, i, def)
-    this._updateSlam(delta, i, def)
+    // Las dos habilidades son OPCIONALES: un boss sin `charge` o sin `slam` en
+    // la tabla simplemente no la usa. Quitarle un ataque a un boss es borrar
+    // una clave, no tocar este archivo.
+    if (def.charge) this._updateCharge(delta, i, def)
+    if (def.slam) this._updateSlam(delta, i, def)
   }
 
   /**

@@ -16,6 +16,8 @@ import { SOUND_DEFS } from '../src/config/SoundDefs.js'
 import { ParticleSystem } from '../src/vfx/ParticleSystem.js'
 import { VFX_DEFS } from '../src/config/VfxDefs.js'
 import { FrameEvents } from '../src/core/FrameEvents.js'
+import { BossController } from '../src/enemies/BossController.js'
+import { BOSS_DEFS } from '../src/config/BossDefs.js'
 
 /** Escena de mentira: los sistemas solo le piden add(). */
 const escena = { add() {} }
@@ -877,6 +879,102 @@ describe('Tablas de datos', () => {
     // La metralleta a máxima cadencia con la vida más larga de bala.
     const peor = WEAPON_DEFS.reduce((a, d) => Math.max(a, (d.count * d.lifetime) / d.cooldown), 0)
     expect(CONFIG.COMBAT.MAX_PROJECTILES).toBeGreaterThan(peor)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Boss', () => {
+  function crear() {
+    const enemies = new EnemyManager(escena)
+    const waves = { elapsed: 0, spawnMultiplier: 1 }
+    const player = { position: { x: 0, y: 0, z: 0 } }
+    return { boss: new BossController(enemies, waves, player, escena), enemies, waves, player }
+  }
+
+  test('el Cube King no embiste', () => {
+    expect(BOSS_DEFS[0].charge).toBeFalsy()
+  })
+
+  test('pero sí golpea el área', () => {
+    expect(BOSS_DEFS[0].slam).toBeTruthy()
+    expect(BOSS_DEFS[0].slam.damage).toBeGreaterThan(0)
+  })
+
+  test('aparece cuando toca y no antes', () => {
+    const { boss, waves } = crear()
+    waves.elapsed = CONFIG.BOSS.FIRST_AT - 1
+    boss.update(0.016)
+    expect(boss.active).toBe(false)
+    waves.elapsed = CONFIG.BOSS.FIRST_AT
+    boss.update(0.016)
+    expect(boss.active).toBe(true)
+  })
+
+  test('al aparecer limpia la arena pero la basura suelta sus gemas', () => {
+    const { boss, enemies, waves } = crear()
+    for (let i = 0; i < 30; i++) enemies.spawn(ENEMY_TYPE.NORMAL, i, 0)
+    waves.elapsed = CONFIG.BOSS.FIRST_AT
+    boss.update(0.016)
+    enemies.resolveDamage()
+    expect(enemies.deathCount).toBe(30)
+    expect(enemies.count).toBe(1) // queda solo el boss
+  })
+
+  test('el duelo afloja el spawner y al morir lo normaliza', () => {
+    const { boss, enemies, waves } = crear()
+    waves.elapsed = CONFIG.BOSS.FIRST_AT
+    boss.update(0.016)
+    expect(waves.spawnMultiplier).toBe(CONFIG.BOSS.SPAWN_SLOWDOWN)
+
+    const i = enemies.indexOfId(boss.bossId)
+    enemies.damage(i, 1e9)
+    boss.update(0.016)
+    expect(boss.active).toBe(false)
+    expect(boss.defeated).toBe(1)
+    expect(waves.spawnMultiplier).toBe(1)
+  })
+
+  test('cada boss siguiente tiene más vida', () => {
+    const { boss, enemies, waves } = crear()
+    waves.elapsed = CONFIG.BOSS.FIRST_AT
+    boss.update(0.016)
+    const primera = boss.maxHp
+    enemies.damage(enemies.indexOfId(boss.bossId), 1e9)
+    boss.update(0.016)
+    waves.elapsed = boss.nextAt
+    boss.update(0.016)
+    expect(boss.maxHp).toBeGreaterThan(primera)
+  })
+
+  // La embestida se le sacó al Cube King por diseño, pero el mecanismo sigue
+  // soportado: un boss futuro la activa agregando la clave a su fila. Este test
+  // es lo que hace que "soportado" no sea una promesa vacía.
+  test('la embestida sigue funcionando para un boss que la declare', () => {
+    const { boss, enemies } = crear()
+    const def = {
+      enemyType: ENEMY_TYPE.BOSS,
+      charge: { every: 6.5, telegraph: 0.85, speed: 15, duration: 1, warnColor: 0xff4d6d },
+    }
+    const i = enemies.spawn(ENEMY_TYPE.BOSS, 0, 0)
+    boss._chargeTimer = 0.1
+    boss._chargeState = ''
+
+    // Se cumple el temporizador: entra en aviso y SE FRENA.
+    boss._updateCharge(0.2, i, def)
+    expect(boss.chargePhase).toBe('TELEGRAPH')
+    boss._updateCharge(0.1, i, def)
+    expect(enemies.speed[i]).toBe(0)
+
+    // Se cumple el aviso: arranca la embestida a la velocidad de la tabla.
+    boss._updateCharge(def.charge.telegraph, i, def)
+    expect(boss.chargePhase).toBe('CHARGING')
+    expect(enemies.speed[i]).toBe(def.charge.speed)
+
+    // Se acaba: vuelve a su velocidad normal.
+    boss._updateCharge(def.charge.duration + 0.01, i, def)
+    expect(boss.chargePhase).toBe('')
+    // speed es un Float32Array: 2.3 no existe exacto en 32 bits.
+    expect(enemies.speed[i]).toBeCloseTo(ENEMY_DEFS[ENEMY_TYPE.BOSS].speed, 1e-5)
   })
 })
 
