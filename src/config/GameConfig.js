@@ -42,8 +42,17 @@ export const CONFIG = {
      * si la cámara girase con el personaje, perderías la noción de dónde
      * viene la horda. El input WASD es relativo al mundo, no a la cámara,
      * lo que elimina toda una clase de bugs de control.
+     *
+     * El acercamiento se hizo bajando la cámara MÁS de lo que se la acercó
+     * (y 11→9, z 9→8) y no las dos cosas por igual. Bajarla la inclina hacia
+     * el horizonte, y eso devuelve por delante lo que el acercamiento quita:
+     * medido a 16:9, el personaje se ve un 18% más grande y **se sigue viendo
+     * exactamente igual de lejos hacia adelante** (20.5 u contra 20.4 antes).
+     * Lo que se paga está atrás y a los costados: 6.2→5.2 u por detrás y
+     * 13.7→11.8 a cada lado. Un corredor a 5.2 u/s ahora se ve venir por la
+     * espalda con ~1 s de aviso en vez de ~1.2 s.
      */
-    OFFSET: { x: 0, y: 11, z: 9 }, // desplazamiento respecto del jugador
+    OFFSET: { x: 0, y: 9, z: 8 }, // desplazamiento respecto del jugador
     LOOK_HEIGHT: 1.0, // mira un poco por encima de los pies del jugador
     FOV: 55,
     /** Suavizado del seguimiento; mayor = más pegada al jugador. */

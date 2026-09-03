@@ -161,7 +161,7 @@ Medido en navegador ejecutando el juego real (no estimado). Reproducible desde l
 
 **El personaje es código, no un asset.** `SoldierModel.js` genera la geometría y `SoldierAtlas.js` pinta la textura en un canvas: no hay `.glb` que versionar, ni pipeline de exportación, ni binarios en el repo. Se tunea editando las medidas del rig.
 
-La animación es **rígida por hueso, sin skinning**. A la altura de cámara del juego (y=11, FOV 55) no se ve un codo doblándose: se ve la silueta. El costo es 1 draw call por hueso; el beneficio es que no hace falta esqueleto exportado. Si alguna vez hay cámara de cerca, se cambia por un GLTF con skinning y `Player.js` no se entera.
+La animación es **rígida por hueso, sin skinning**. A la altura de cámara del juego (y=9, FOV 55) no se ve un codo doblándose: se ve la silueta. El costo es 1 draw call por hueso; el beneficio es que no hace falta esqueleto exportado. Si alguna vez hay cámara de cerca, se cambia por un GLTF con skinning y `Player.js` no se entera.
 
 | Criterio | Medición |
 |---|---|
@@ -174,6 +174,16 @@ La animación es **rígida por hueso, sin skinning**. A la altura de cámara del
 | Retroceso | `WeaponSystem` llama a `player.recoil()` al disparar; decae solo |
 | Golpe | destello `#ff2244` mientras dura la invulnerabilidad, negro al terminar |
 | Reinicio | ciclo, amplitud, retroceso y destello vuelven a cero |
+
+**La cámara se acercó un 18%** (`OFFSET` y 11→9, z 9→8) bajándola más de lo que se la acercó, no las dos cosas por igual. Bajarla la inclina hacia el horizonte y eso devuelve por delante lo que el acercamiento quita. Medido a 16:9, unproyectando los bordes de pantalla sobre el suelo:
+
+| Alcance de la vista | Antes | Ahora |
+|---|---|---|
+| Hacia adelante | 20.4 u | **20.5 u** (igual) |
+| Hacia atrás | 6.2 u | 5.2 u |
+| A cada lado | 13.7 u | 11.8 u |
+
+Lo que se paga está atrás: un corredor a 5.2 u/s se ve venir por la espalda con **~1 s** de aviso en vez de ~1.2 s. Si se quiere recuperar, el número está en `CONFIG.CAMERA.OFFSET`.
 
 **Movimiento y animación no se pisan.** El modelo se cuelga de un grupo intermedio: la lógica de movimiento escribe posición y rotación en ese grupo, y el modelo anima adentro leyendo solo `currentSpeed` e `isMoving` — valores que el movimiento ya decidió. La animación no vuelve a leer el input ni corrige la posición, que es el acoplamiento que el GDD §1 prohíbe.
 
