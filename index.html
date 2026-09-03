@@ -421,6 +421,29 @@
       box-shadow: 0 0 8px rgba(255, 209, 102, 0.6);
     }
 
+    .ssound {
+      padding: 6px 12px;
+      border: 1px solid rgba(127, 155, 176, 0.35);
+      border-radius: 999px;
+      background: none;
+      color: #7f9bb0;
+      font: inherit;
+      font-size: 10px;
+      letter-spacing: 1px;
+      cursor: pointer;
+    }
+
+    .ssound:hover {
+      border-color: #7f9bb0;
+      color: #cfe6f5;
+    }
+
+    /* Silenciado: se ve apagado, no solo con otro texto. */
+    .ssound.off {
+      border-color: rgba(255, 77, 109, 0.35);
+      color: #ff4d6d;
+    }
+
     .scard.selected {
       border-color: var(--s-color);
       background: rgba(32, 41, 54, 0.98);

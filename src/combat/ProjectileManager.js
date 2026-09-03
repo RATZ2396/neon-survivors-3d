@@ -22,6 +22,12 @@ export class ProjectileManager {
     this.max = max
     this.count = 0
     this.enemies = enemies
+    /**
+     * Impactos acumulados en la partida. Es una estadística de solo lectura:
+     * la publica para que otros sistemas (hoy el audio) puedan reaccionar sin
+     * que este tenga que conocerlos. Se reinicia con clear().
+     */
+    this.hitCount = 0
 
     this.posX = new Float32Array(max)
     this.posZ = new Float32Array(max)
@@ -105,6 +111,7 @@ export class ProjectileManager {
   clear() {
     this.count = 0
     this.mesh.count = 0
+    this.hitCount = 0
   }
 
   /**
@@ -140,6 +147,7 @@ export class ProjectileManager {
 
       e.queueDamage(hit, this.damage[i])
       this.lastHitId[i] = e.id[hit]
+      this.hitCount++
 
       if (this.explodeRadius[i] > 0) {
         this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit)

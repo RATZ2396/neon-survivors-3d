@@ -187,6 +187,7 @@ Cada una tiene: qué se hace, de qué depende, cuándo se considera terminada. P
 
 - `SoundManager.js` (WebAudio sintetizado, sin archivos de sonido). Conceptualmente ya está bien resuelto en v1 — se migra y se limpia, no se rediseña.
 - **Depende de:** nada. Paralelizable desde el día 1.
+- **Estado: hecha y verificada.** 16 sonidos sintetizados, con presupuesto de voces y limitador de repetición. El audio NO se llama desde los sistemas: `GameAudio` observa el frame resuelto y deduce qué sonar. Ver README, "Verificación de la Parte H".
 
 ### Parte I — VFX y Post-processing
 

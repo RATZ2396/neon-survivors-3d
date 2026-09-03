@@ -28,6 +28,8 @@ export class StartMenu {
     this.visible = false
     /** Arma marcada. Arranca en la que dejaste la última vez. */
     this.selected = profile.weapon
+    /** Lo inyecta el GameManager. El menú no crea audio, solo lo usa. */
+    this.sound = null
 
     this.el = document.createElement('div')
     this.el.id = 'start-menu'
@@ -46,18 +48,20 @@ export class StartMenu {
         <div class="shead">
           <h1>NEON SURVIVORS</h1>
           <span class="scoin"><i></i><b data-coin>0</b></span>
+          <button class="ssound" data-act="mute" title="Silencio (M)"></button>
         </div>
         <p class="ssub">Elegí tu arma — define toda la partida. Las habilidades se eligen adentro, al subir de nivel.</p>
         <div class="scards" data-cards></div>
         <div class="sshop" data-shop></div>
         <div class="sfoot">
           <button class="splay" data-act="play">JUGAR</button>
-          <p class="shint">1-3 para elegir · Enter para empezar · WASD para moverte · el arma dispara sola</p>
+          <p class="shint">1-3 para elegir · Enter para empezar · WASD para moverte · M para silencio · el arma dispara sola</p>
         </div>
       </div>
     `
 
     this.coin = this.el.querySelector('[data-coin]')
+    this.soundBtn = this.el.querySelector('[data-act="mute"]')
     this.cards = this.el.querySelector('[data-cards]')
     this.shop = this.el.querySelector('[data-shop]')
 
@@ -72,6 +76,7 @@ export class StartMenu {
       else if (act === 'pick') this._select(el.dataset.key)
       else if (act === 'buy') this._buy(el.dataset.track)
       else if (act === 'wipe') this._wipe()
+      else if (act === 'mute') this._toggleMute()
     })
   }
 
@@ -100,8 +105,25 @@ export class StartMenu {
 
   _buy(trackKey) {
     const track = META_TREES[this.selected].find((t) => t.key === trackKey)
-    if (track) this.profile.buy(this.selected, track)
+    // El sonido solo suena si la compra se concretó: confirmar algo que no pasó
+    // es peor que no sonar.
+    if (track && this.profile.buy(this.selected, track)) this.sound?.play('BUY')
     this._render()
+  }
+
+  _toggleMute() {
+    if (!this.sound) return
+    this.profile.muted = this.sound.toggleMute()
+    this.profile.save()
+    this.refreshSound()
+  }
+
+  /** Refresca el botón. Lo llama también el GameManager cuando se aprieta M. */
+  refreshSound() {
+    if (!this.soundBtn) return
+    const off = this.profile.muted
+    this.soundBtn.textContent = off ? 'SONIDO OFF' : 'SONIDO ON'
+    this.soundBtn.classList.toggle('off', off)
   }
 
   _wipe() {
@@ -126,6 +148,7 @@ export class StartMenu {
 
   _render() {
     this.coin.textContent = Math.floor(this.profile.currency)
+    this.refreshSound()
     this.cards.innerHTML = WEAPON_DEFS.map((def, i) => this._card(def, i)).join('')
     this.shop.innerHTML = this._shop()
   }

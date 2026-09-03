@@ -18,7 +18,8 @@ Abre en `http://localhost:5173`.
 | **WASD** / joystick en pantallas < 769px | mover (es lo único que se controla: el disparo es automático) |
 | **1 … 4** o clic, en el menú de nivel | elegir la habilidad o mejora |
 | **L** | abrir el laboratorio de habilidades (solo en desarrollo) |
-| **R** / **M** tras morir | reintentar con la misma arma / volver al taller |
+| **M** | silenciar / restaurar el sonido (se recuerda en el perfil) |
+| **R** / **T** tras morir | reintentar con la misma arma / volver al taller |
 
 La barra de abajo es **tu build**: el arma elegida (con su enfriamiento) y las habilidades que fuiste consiguiendo, con su nivel. El panel de arriba a la izquierda es diagnóstico técnico (FPS, memoria, draw calls) y se apaga con `CONFIG.DEV.SHOW_DEBUG_PANEL`.
 
@@ -95,6 +96,8 @@ src/
 │   ├── Progression.js            nivel, XP y multiplicadores de la partida
 │   └── GemManager.js             gemas de XP con imán
 ├── skills/SkillSystem.js         las 3 skills, un solo resolutor
+├── audio/SoundManager.js        sintetiza y reproduce; presupuesto de voces
+├── audio/GameAudio.js           mira el frame y deduce qué sonar
 ├── meta/PlayerProfile.js         perfil persistente: moneda y mejoras compradas
 ├── ui/StartMenu.js               perfil, taller y elección del arma base
 ├── ui/HUD.js                     vida, XP, tiempo, oleada y tu build
@@ -106,6 +109,7 @@ src/
 ├── config/SkillDefs.js           las habilidades, con sus 5 niveles
 ├── config/UpgradeDefs.js         mazo de mejoras del menú de nivel (de partida)
 ├── config/MetaDefs.js            árboles de mejora permanente, uno por arma
+├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 └── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
 ```
 
@@ -122,6 +126,7 @@ src/
 | Balancear un arma base | `config/WeaponDefs.js` (una fila) |
 | Cambiar una mejora permanente o su costo | `config/MetaDefs.js` → `META_TREES` (una fila) |
 | Cambiar cuánta moneda deja una partida | `config/GameConfig.js` → `META` |
+| Balancear o agregar un sonido | `config/SoundDefs.js` (una fila) |
 | Agregar o balancear una skill | `config/SkillDefs.js` (una fila, con sus 5 niveles) |
 | Agregar una mejora de estadística | `config/UpgradeDefs.js` → `STAT_UPGRADES` |
 | Cambiar el ritmo de subida de nivel | `config/GameConfig.js` → `PROGRESSION.XP_BASE` / `XP_GROWTH` |
@@ -141,8 +146,8 @@ Ninguna de esas cosas requiere tocar lógica de simulación. Ese es el punto.
 | **F — Boss** | ✅ Completa y verificada |
 | G — UI/HUD/menús | 🟡 Inicio, taller, HUD, menú de nivel y muerte hechos; falta pausa |
 | **L — Meta-progresión** (perfil, moneda, mejoras de arma) | ✅ Completa y verificada |
-| H — Audio | ⬜ **Siguiente** |
-| I — VFX / post-processing | ⬜ |
+| **H — Audio** | ✅ Completa y verificada |
+| I — VFX / post-processing | ⬜ **Siguiente** |
 | J — Pooling y memoria | ⬜ |
 | K — Testing | ⬜ |
 
@@ -290,6 +295,30 @@ También apareció acá algo que no era del boss: al reiniciar, la cámara **int
 **Perfil corrupto no tumba el juego.** `localStorage` devuelve texto que escribió una versión anterior o alguien con la consola abierta, así que se trata como dato sucio. Probado con: JSON inválido, `null`, un arreglo, moneda negativa, nivel 99 en una rama de máximo 5, una rama que no existe, un arma inventada, sin `localStorage`, y un storage que tira excepción al leer **y al escribir**. Los nueve casos arrancan un perfil válido; ninguno lanza.
 
 **Un bug que la recompensa hizo visible:** `EnemyManager.clear()` no reiniciaba `killCount`, así que las bajas se arrastraban de una partida a la siguiente. Mientras el número solo se mostraba en el HUD era un detalle feo; desde que la recompensa se calcula con él, reintentar sin cerrar la pestaña **pagaba de más cada vez**. Dos partidas idénticas ahora pagan idéntico.
+
+### Verificación de la Parte H
+
+**Ningún sistema del juego sabe que el audio existe.** No hay un `sound.play()` desperdigado por el arma, la horda y el boss: `GameAudio` mira el estado que esos sistemas ya publican y deduce qué pasó comparándolo con el frame anterior. Disparaste si el contador de disparos subió; te pegaron si la invulnerabilidad pasó de cero a algo. Así el audio no es una dependencia de la simulación, no hay que pasarlo por seis constructores, y silenciarlo es borrar una línea del loop.
+
+El precio es real y está anotado: no se puede sonar algo que el estado no cuenta. Para el impacto de bala hubo que **publicar** `ProjectileManager.hitCount` — no espiar una variable privada.
+
+**Sin archivos de audio.** Los 16 sonidos son recetas de osciladores y ruido en `SoundDefs.js`: cero descargas, cero licencias, y balancear el audio es editar números en una tabla.
+
+| Criterio | Medición |
+|---|---|
+| Los 16 suenan | señal medida con un `AnalyserNode` colgado del master: los 16 dan RMS > 0 |
+| Jerarquía de la mezcla | muerte 0.35 · golpe recibido 0.22 · golpe del boss 0.34 **contra** pistola 0.038 y metralleta 0.022 — lo que te mata se escucha ~6-10× por encima de lo que disparás |
+| Desbloqueo | el `AudioContext` es `null` hasta el primer gesto; con un clic real pasa a `running` |
+| Limitador | 400 pedidos del mismo sonido en un frame → **suena 1** |
+| Presupuesto de voces | con 20 voces de prioridad alta ocupando el tope, un sonido flojo se **rechaza** y el golpe del boss **entra** |
+| En partida real | 400 enemigos + metralleta: **60 fps**, pico de **4 voces** simultáneas de 20 posibles |
+| Disparo múltiple | la escopeta emite 6 proyectiles y suena **una** vez |
+| Duelo con boss | aparición, aviso, embestida y golpe de área sonaron los cuatro, en orden |
+| Silencio | la tecla M y el botón del taller lo alternan, y **sobrevive a recargar** la página |
+
+**Por qué hay tope de voces Y intervalo mínimo, si con uno alcanzaría:** el intervalo es el que hace el trabajo (pico de 4 voces en la peor carga medida), el tope es la red por si una combinación futura de sonidos lo esquiva. Es el mismo razonamiento que el pool de proyectiles: el pico de coste no puede llegar justo en el peor momento del juego.
+
+**Cambio de control:** la tecla de volver al taller tras morir pasó de **M** a **T**, porque M es la convención universal para silenciar y silenciar tiene que funcionar en cualquier estado.
 
 ## Decisiones abiertas
 

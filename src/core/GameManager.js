@@ -17,6 +17,8 @@ import { SkillSystem } from '../skills/SkillSystem.js'
 import { BossController } from '../enemies/BossController.js'
 import { StartMenu } from '../ui/StartMenu.js'
 import { PlayerProfile } from '../meta/PlayerProfile.js'
+import { SoundManager } from '../audio/SoundManager.js'
+import { GameAudio } from '../audio/GameAudio.js'
 import { SkillLab } from '../ui/SkillLab.js'
 import { rollUpgrades } from '../config/UpgradeDefs.js'
 import { PerformanceMonitor } from '../perf/PerformanceMonitor.js'
@@ -72,6 +74,20 @@ export class GameManager {
     this.upgradeMenu = new UpgradeMenu((up) => this._applyUpgrade(up))
 
     this.boss = new BossController(this.enemies, this.waves, this.player, this.scene)
+    this.startMenu = new StartMenu((key) => this.startRun(key), this.profile)
+
+    // Audio. El contexto todavía NO existe: los navegadores lo bloquean hasta
+    // que hay un gesto del usuario, así que se crea en el primer clic o tecla.
+    this.sound = new SoundManager()
+    this.sound.setMuted(this.profile.muted)
+    this.audio = new GameAudio(this.sound, {
+      player: this.player,
+      enemies: this.enemies,
+      weapons: this.weapons,
+      boss: this.boss,
+      projectiles: this.projectiles,
+    })
+    this.startMenu.sound = this.sound
 
     this.hud = new HUD(
       this.player,
@@ -83,7 +99,6 @@ export class GameManager {
       this.skills,
     )
     this.monitor = new PerformanceMonitor()
-    this.startMenu = new StartMenu((key) => this.startRun(key), this.profile)
 
     // Herramienta de diseño, no del juego: solo existe en desarrollo.
     this.skillLab = import.meta.env.DEV
@@ -96,15 +111,29 @@ export class GameManager {
     this._onKey = this._onKey.bind(this)
     window.addEventListener('keydown', this._onKey)
 
+    // Un solo enganche para desbloquear el audio: cualquier gesto sirve, y
+    // unlock() es idempotente, así que no hace falta desengancharlo.
+    this._unlockAudio = () => this.sound.unlock()
+    window.addEventListener('pointerdown', this._unlockAudio)
+    window.addEventListener('keydown', this._unlockAudio)
+
     this._tick = this._tick.bind(this)
   }
 
   _onKey(e) {
+    // Silencio: funciona en cualquier estado, como en cualquier otro juego.
+    if (e.code === 'KeyM') {
+      this.profile.muted = this.sound.toggleMute()
+      this.profile.save()
+      this.startMenu.refreshSound()
+      return
+    }
+
     if (this.state !== GAME_STATE.GAME_OVER) return
 
-    // R reintenta con la misma arma; M vuelve a la elección de arma.
+    // R reintenta con la misma arma; T vuelve al taller.
     if (e.code === 'KeyR') this.startRun(this.startMenu.selected)
-    else if (e.code === 'KeyM') this.toMenu()
+    else if (e.code === 'KeyT') this.toMenu()
   }
 
   _upgradeContext() {
@@ -132,6 +161,7 @@ export class GameManager {
   }
 
   _applyUpgrade(up) {
+    this.sound.play('UPGRADE_PICK')
     up.apply(this._upgradeContext())
     this.progression.markTaken(up.key)
     this._pendingLevels--
@@ -183,6 +213,7 @@ export class GameManager {
     this.startMenu.hide()
     this.hud.hideGameOver()
     this.state = GAME_STATE.PLAYING
+    this.audio.reset()
   }
 
   /** Deja todos los sistemas en su estado inicial, sin recrear nada. */
@@ -299,11 +330,16 @@ export class GameManager {
       // La XP no se cobra al matar: cae como gema y hay que ir a buscarla.
       const overflow = this.gems.spawnFromDeaths(this.enemies)
       const picked = this.gems.update(delta, this.player.position, this.progression.stats.magnetRadius)
-      this._pendingLevels += this.progression.addXp(picked + overflow)
+      const subidos = this.progression.addXp(picked + overflow)
+      this._pendingLevels += subidos
 
       this.enemies.sync(this.time.elapsed, this.player.position)
       this.projectiles.sync()
       this.gems.sync(this.time.elapsed)
+
+      // El audio va DESPUÉS de todo: mira el frame ya resuelto y deduce qué
+      // pasó. Ningún sistema le avisa nada.
+      this.audio.update({ gems: picked + overflow, levels: subidos })
 
       if (this.player.isDead) this._endRun()
       else if (this._pendingLevels > 0) this._openUpgradeMenu()

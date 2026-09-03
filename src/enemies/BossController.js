@@ -68,6 +68,22 @@ export class BossController {
     return this.bossId !== 0
   }
 
+  /**
+   * Fase de la embestida: '' | 'TELEGRAPH' | 'CHARGING'.
+   *
+   * Es de solo lectura y existe para que otros sistemas (el audio, y mañana los
+   * efectos) puedan reaccionar al aviso sin espiar el estado interno ni pedirle
+   * al boss que les avise. El boss no sabe quién lo mira.
+   */
+  get chargePhase() {
+    return this._chargeState
+  }
+
+  /** Si el anillo de aviso del golpe de área está en el piso. Solo lectura. */
+  get slamWarning() {
+    return this.slamRing.visible
+  }
+
   /** Momento en que aparece el próximo boss. */
   get nextAt() {
     return CONFIG.BOSS.FIRST_AT + this.spawned * CONFIG.BOSS.REPEAT_EVERY

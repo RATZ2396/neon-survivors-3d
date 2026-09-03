@@ -205,7 +205,7 @@ export class HUD {
         <h1>MORISTE</h1>
         <p>${kills} bajas · ${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')} sobrevividos</p>
         <p class="reward">+${reward} <i>de recompensa</i> · ${Math.floor(currency)} en total</p>
-        <p class="hint">R para reintentar con la misma arma · M para el taller</p>
+        <p class="hint">R para reintentar con la misma arma · T para el taller</p>
       </div>
     `
     document.body.appendChild(el)

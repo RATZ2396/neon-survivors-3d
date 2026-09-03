@@ -32,6 +32,8 @@ export class PlayerProfile {
     for (const def of WEAPON_DEFS) this.upgrades[def.key] = {}
     this.runs = 0
     this.bestSeconds = 0
+    /** Silencio. Es preferencia del jugador, así que vive con el perfil. */
+    this.muted = false
   }
 
   load() {
@@ -58,6 +60,7 @@ export class PlayerProfile {
     this.runs = this._num(data.runs, 0)
     this.bestSeconds = this._num(data.bestSeconds, 0)
     if (typeof data.weapon === 'string' && META_TREES[data.weapon]) this.weapon = data.weapon
+    if (typeof data.muted === 'boolean') this.muted = data.muted
 
     // Solo se aceptan ramas que existen hoy y niveles dentro del máximo actual.
     // Así, bajar el máximo de una rama en la tabla no deja perfiles imposibles.
@@ -87,6 +90,7 @@ export class PlayerProfile {
           upgrades: this.upgrades,
           runs: this.runs,
           bestSeconds: this.bestSeconds,
+          muted: this.muted,
         }),
       )
     } catch {
