@@ -220,6 +220,44 @@ export const CONFIG = {
     REWARD_MIN: 5,
   },
 
+  /**
+   * VFX y post-procesado.
+   *
+   * PRESUPUESTO DE RENDIMIENTO, ESCRITO ANTES DE ENCENDER NADA (lo exige el
+   * GDD Parte I, y con razón: en el prototipo anterior bloom + partículas sin
+   * pooling fue de lo más caro en hardware modesto).
+   *
+   *   Objetivo:  60 fps con 400 enemigos, en la máquina de desarrollo.
+   *   Techo:     el bloom no puede costar más de BLOOM_BUDGET_MS por frame.
+   *   Piso:      si el promedio cae por debajo de DEGRADE_FPS durante
+   *              DEGRADE_SECONDS seguidos, el bloom SE APAGA SOLO y no vuelve.
+   *
+   * Ese apagado automático es el punto: una GPU integrada no tiene por qué
+   * pagar el efecto, y el jugador no tiene por qué saber qué es un composer
+   * para que el juego le ande. El juego se ve peor y se juega igual, que es el
+   * orden correcto de prioridades.
+   */
+  VFX: {
+    /** Partículas vivas a la vez. Pool fijo: si se llena, la nueva se pierde. */
+    MAX_PARTICLES: 900,
+    /** Gravedad de las partículas, en u/s². */
+    GRAVITY: -14,
+    /** Rozamiento por segundo: frena la explosión en vez de dejarla volar. */
+    DRAG: 3.2,
+
+    BLOOM: true,
+    /** Qué tan brillante tiene que ser un píxel para florecer (0..1). */
+    BLOOM_THRESHOLD: 0.62,
+    BLOOM_STRENGTH: 0.62,
+    BLOOM_RADIUS: 0.45,
+
+    /** Coste máximo aceptable del post-procesado, en milisegundos por frame. */
+    BLOOM_BUDGET_MS: 3.0,
+    /** Por debajo de estos fps sostenidos, el bloom se apaga solo. */
+    DEGRADE_FPS: 45,
+    DEGRADE_SECONDS: 4,
+  },
+
   DEV: {
     SHOW_DEBUG_PANEL: true,
   },

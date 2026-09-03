@@ -28,6 +28,9 @@ export class ProjectileManager {
      * que este tenga que conocerlos. Se reinicia con clear().
      */
     this.hitCount = 0
+    /** Dónde pegó la última bala. Lo leen las partículas. */
+    this.hitX = 0
+    this.hitZ = 0
 
     this.posX = new Float32Array(max)
     this.posZ = new Float32Array(max)
@@ -148,6 +151,8 @@ export class ProjectileManager {
       e.queueDamage(hit, this.damage[i])
       this.lastHitId[i] = e.id[hit]
       this.hitCount++
+      this.hitX = x
+      this.hitZ = z
 
       if (this.explodeRadius[i] > 0) {
         this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit)

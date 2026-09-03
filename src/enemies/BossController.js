@@ -52,6 +52,16 @@ export class BossController {
     this.hp = 0
     this.maxHp = 0
     this.name = ''
+    /**
+     * Última posición conocida del boss. Al morir, es dónde cayó.
+     *
+     * Se anota cada frame en vez de buscarla en la lista de muertes del
+     * EnemyManager: esa lista no garantiza orden (las muertes se resuelven
+     * recorriendo hacia atrás), así que "la última entrada" no siempre sería
+     * el boss. Copiar dos flotantes por frame es más barato que buscar.
+     */
+    this.lastX = 0
+    this.lastZ = 0
 
     this._chargeTimer = 0
     this._slamTimer = 0
@@ -146,6 +156,8 @@ export class BossController {
     }
 
     this.hp = this.enemies.hp[i]
+    this.lastX = this.enemies.posX[i]
+    this.lastZ = this.enemies.posZ[i]
 
     const def = BOSS_DEFS[0]
     this._updateCharge(delta, i, def)

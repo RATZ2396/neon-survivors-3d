@@ -19,6 +19,10 @@ import { StartMenu } from '../ui/StartMenu.js'
 import { PlayerProfile } from '../meta/PlayerProfile.js'
 import { SoundManager } from '../audio/SoundManager.js'
 import { GameAudio } from '../audio/GameAudio.js'
+import { FrameEvents } from './FrameEvents.js'
+import { ParticleSystem } from '../vfx/ParticleSystem.js'
+import { GameVfx } from '../vfx/GameVfx.js'
+import { PostFX } from '../vfx/PostFX.js'
 import { SkillLab } from '../ui/SkillLab.js'
 import { rollUpgrades } from '../config/UpgradeDefs.js'
 import { PerformanceMonitor } from '../perf/PerformanceMonitor.js'
@@ -71,6 +75,8 @@ export class GameManager {
     this._pendingLevels = 0
     /** Moneda que dejó la última partida. La muestra la pantalla de muerte. */
     this._lastReward = 0
+    /** Draw calls del frame anterior; el panel corre antes de dibujar. */
+    this._lastCalls = 0
     this.upgradeMenu = new UpgradeMenu((up) => this._applyUpgrade(up))
 
     this.boss = new BossController(this.enemies, this.waves, this.player, this.scene)
@@ -80,14 +86,23 @@ export class GameManager {
     // que hay un gesto del usuario, así que se crea en el primer clic o tecla.
     this.sound = new SoundManager()
     this.sound.setMuted(this.profile.muted)
-    this.audio = new GameAudio(this.sound, {
+    this.startMenu.sound = this.sound
+
+    // Los hechos del frame se deducen UNA vez y los leen los dos consumidores.
+    // Si cada uno dedujera lo suyo, el chispazo y el sonido del mismo impacto
+    // terminarían separándose.
+    const sistemas = {
       player: this.player,
       enemies: this.enemies,
       weapons: this.weapons,
       boss: this.boss,
       projectiles: this.projectiles,
-    })
-    this.startMenu.sound = this.sound
+    }
+    this.events = new FrameEvents(sistemas)
+    this.audio = new GameAudio(this.sound)
+    this.particles = new ParticleSystem(this.scene)
+    this.vfx = new GameVfx(this.particles, sistemas)
+    this.postfx = new PostFX(this.renderer, this.scene, this.camera)
 
     this.hud = new HUD(
       this.player,
@@ -126,6 +141,12 @@ export class GameManager {
       this.profile.muted = this.sound.toggleMute()
       this.profile.save()
       this.startMenu.refreshSound()
+      return
+    }
+
+    // B compara con y sin bloom. Es de desarrollo, pero no molesta que exista.
+    if (e.code === 'KeyB') {
+      this.postfx.toggle()
       return
     }
 
@@ -213,7 +234,7 @@ export class GameManager {
     this.startMenu.hide()
     this.hud.hideGameOver()
     this.state = GAME_STATE.PLAYING
-    this.audio.reset()
+    this.events.reset()
   }
 
   /** Deja todos los sistemas en su estado inicial, sin recrear nada. */
@@ -223,6 +244,7 @@ export class GameManager {
     this.enemies.clear()
     this.projectiles.clear()
     this.gems.clear()
+    this.particles.clear()
     this.waves.reset()
     this.weapons.reset()
     this.skills.reset()
@@ -242,6 +264,10 @@ export class GameManager {
     // Techo de DPR: en pantallas 3x el coste de fill rate se dispara sin
     // ganancia visual real para este estilo.
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    // El contador de draw calls se reinicia solo en cada render(), y el
+    // post-procesado hace varios por frame: sin esto el panel de diagnóstico
+    // mostraría solo el último pase y diría "1" con la escena entera dibujada.
+    this.renderer.info.autoReset = false
     this.container.appendChild(this.renderer.domElement)
   }
 
@@ -295,6 +321,7 @@ export class GameManager {
   _tick() {
     requestAnimationFrame(this._tick)
 
+    this.renderer.info.reset()
     this.time.update()
     const delta = this.time.delta
 
@@ -333,13 +360,22 @@ export class GameManager {
       const subidos = this.progression.addXp(picked + overflow)
       this._pendingLevels += subidos
 
+      // Audio y partículas van DESPUÉS de la simulación: leen el frame ya
+      // resuelto y deducen qué pasó. Ningún sistema les avisa nada.
+      //
+      // El orden de estas cuatro líneas importa igual que el resto del frame:
+      // primero se deducen los hechos, después el VFX emite las partículas
+      // nuevas, y recién ahí se integran y se dibujan. Emitir después de
+      // sincronizar haría que cada explosión apareciera un frame tarde.
+      this.events.update(picked + overflow, subidos)
+      this.audio.update(this.events)
+      this.vfx.update(this.events)
+      this.particles.update(delta)
+
       this.enemies.sync(this.time.elapsed, this.player.position)
       this.projectiles.sync()
       this.gems.sync(this.time.elapsed)
-
-      // El audio va DESPUÉS de todo: mira el frame ya resuelto y deduce qué
-      // pasó. Ningún sistema le avisa nada.
-      this.audio.update({ gems: picked + overflow, levels: subidos })
+      this.particles.sync()
 
       if (this.player.isDead) this._endRun()
       else if (this._pendingLevels > 0) this._openUpgradeMenu()
@@ -354,7 +390,7 @@ export class GameManager {
         inputZ: move.z,
         enemies: this.enemies.count,
         projectiles: this.projectiles.count,
-        renderCalls: this.renderer.info.render.calls,
+        renderCalls: this._lastCalls,
       })
     } else if (this.state === GAME_STATE.GAME_OVER) {
       this.hud.showGameOver(
@@ -365,12 +401,17 @@ export class GameManager {
       )
     }
 
-    this.renderer.render(this.scene, this.camera)
+    // El post-procesado hace cumplir su propio presupuesto: si no rinde, se
+    // apaga solo y esto pasa a ser un render directo (ver PostFX).
+    this.postfx.render(this.monitor.fps, delta)
+    // Se guarda para el frame siguiente: el panel corre antes de dibujar.
+    this._lastCalls = this.renderer.info.render.calls
   }
 
   _onResize() {
     this.camera.aspect = window.innerWidth / window.innerHeight
     this.camera.updateProjectionMatrix()
     this.renderer.setSize(window.innerWidth, window.innerHeight)
+    this.postfx.setSize(window.innerWidth, window.innerHeight)
   }
 }

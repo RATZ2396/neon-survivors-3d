@@ -194,6 +194,7 @@ Cada una tiene: qué se hace, de qué depende, cuándo se considera terminada. P
 - `ParticleSystem.js`, `UnrealBloomPass`.
 - Vigilar costo en GPU integrada: bloom + partículas sin pooling fue exactamente el tipo de decisión que en el otro prototipo (`ARCHITECTURE.md`) identificamos como caro en hardware modesto. Acá si hay presupuesto de rendimiento, definirlo por escrito antes de activar post-processing.
 - **Depende de:** Parte D (necesita eventos de impacto/muerte).
+- **Estado: hecha y verificada.** Presupuesto escrito antes de encender (`CONFIG.VFX`) y aplicado por código: el bloom se apaga solo si el fps no da y no vuelve a encenderse en esa sesión. Partículas con pool fijo de 900 en un solo draw call. Los "eventos de impacto/muerte" que pedía esta parte no son eventos: `FrameEvents` los deduce del estado publicado, y los consumen audio y VFX por igual. Ver README, "Verificación de la Parte I".
 
 ### Parte J — Performance, Pooling y Memoria
 
@@ -232,8 +233,16 @@ Cada una tiene: qué se hace, de qué depende, cuándo se considera terminada. P
 
 ## 6. Decisiones abiertas que necesito que definas
 
-### 6.1 Estilo visual definitivo
+### 6.1 Estilo visual definitivo — RESUELTA: neón oscuro
 "Daylight brillante" (como dice `GDD.md` v1) vs. "neón oscuro" (como está el `index.html` real hoy). Son direcciones de arte casi opuestas y afectan iluminación, paleta, post-processing y hasta el tono del audio.
+
+**Resuelta a favor del neón oscuro**, por tres razones y en ese orden:
+
+1. **Legibilidad**, que en un survivor manda sobre todo lo demás. Con 400 enemigos en pantalla lo único que importa es distinguir al instante qué es enemigo, qué es tu bala, qué es una gema y dónde estás vos. Sobre un piso oscuro, un objeto brillante se lee solo. Sobre un mediodía brillante hay que pelearle contraste a cada elemento.
+2. **El post-procesado de la Parte I sale gratis o no sale.** El bloom convierte lo brillante sobre fondo oscuro en luz; sobre un fondo claro solo lava la imagen y hay que compensarlo bajando todo lo demás. Elegir daylight es pagar el mismo costo de GPU por menos efecto.
+3. **Es lo que el juego ya es.** La paleta de las armas (cian, ámbar, verde), las gemas, la grilla que brilla y todo el HUD ya están construidos así. Cambiar a daylight sería rehacer decisiones tomadas y verificadas, no completarlas.
+
+El soldado con camuflaje es el único elemento que tiraba para el otro lado. Se resuelve leyéndolo como operación nocturna: luz de relleno fría y contraluz, no sol.
 
 ### 6.2 Qué hacer con la arquitectura modular no conectada
 `src/core/`, `src/entities/`, `src/managers/`, etc. (~9500 líneas muertas) — ¿se descartan y la Parte correspondiente se escribe desde cero siguiendo §3, o vale la pena revisar archivo por archivo por si hay lógica rescatable antes de borrar?

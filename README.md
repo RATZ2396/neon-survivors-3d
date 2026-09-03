@@ -19,6 +19,7 @@ Abre en `http://localhost:5173`.
 | **1 … 4** o clic, en el menú de nivel | elegir la habilidad o mejora |
 | **L** | abrir el laboratorio de habilidades (solo en desarrollo) |
 | **M** | silenciar / restaurar el sonido (se recuerda en el perfil) |
+| **B** | encender / apagar el bloom, para comparar |
 | **R** / **T** tras morir | reintentar con la misma arma / volver al taller |
 
 La barra de abajo es **tu build**: el arma elegida (con su enfriamiento) y las habilidades que fuiste consiguiendo, con su nivel. El panel de arriba a la izquierda es diagnóstico técnico (FPS, memoria, draw calls) y se apaga con `CONFIG.DEV.SHOW_DEBUG_PANEL`.
@@ -97,7 +98,11 @@ src/
 │   └── GemManager.js             gemas de XP con imán
 ├── skills/SkillSystem.js         las 3 skills, un solo resolutor
 ├── audio/SoundManager.js        sintetiza y reproduce; presupuesto de voces
-├── audio/GameAudio.js           mira el frame y deduce qué sonar
+├── audio/GameAudio.js           qué suena en cada hecho del frame
+├── vfx/ParticleSystem.js        todas las partículas, en un solo draw call
+├── vfx/GameVfx.js               qué partículas salen en cada hecho
+├── vfx/PostFX.js                bloom + el presupuesto que lo apaga solo
+├── core/FrameEvents.js          deduce qué pasó este frame, para audio y VFX
 ├── meta/PlayerProfile.js         perfil persistente: moneda y mejoras compradas
 ├── ui/StartMenu.js               perfil, taller y elección del arma base
 ├── ui/HUD.js                     vida, XP, tiempo, oleada y tu build
@@ -110,6 +115,7 @@ src/
 ├── config/UpgradeDefs.js         mazo de mejoras del menú de nivel (de partida)
 ├── config/MetaDefs.js            árboles de mejora permanente, uno por arma
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
+├── config/VfxDefs.js             las 7 explosiones de partículas
 └── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
 ```
 
@@ -127,6 +133,8 @@ src/
 | Cambiar una mejora permanente o su costo | `config/MetaDefs.js` → `META_TREES` (una fila) |
 | Cambiar cuánta moneda deja una partida | `config/GameConfig.js` → `META` |
 | Balancear o agregar un sonido | `config/SoundDefs.js` (una fila) |
+| Balancear o agregar un efecto de partículas | `config/VfxDefs.js` (una fila) |
+| Tocar el bloom o su presupuesto | `config/GameConfig.js` → `VFX` |
 | Agregar o balancear una skill | `config/SkillDefs.js` (una fila, con sus 5 niveles) |
 | Agregar una mejora de estadística | `config/UpgradeDefs.js` → `STAT_UPGRADES` |
 | Cambiar el ritmo de subida de nivel | `config/GameConfig.js` → `PROGRESSION.XP_BASE` / `XP_GROWTH` |
@@ -147,8 +155,8 @@ Ninguna de esas cosas requiere tocar lógica de simulación. Ese es el punto.
 | G — UI/HUD/menús | 🟡 Inicio, taller, HUD, menú de nivel y muerte hechos; falta pausa |
 | **L — Meta-progresión** (perfil, moneda, mejoras de arma) | ✅ Completa y verificada |
 | **H — Audio** | ✅ Completa y verificada |
-| I — VFX / post-processing | ⬜ **Siguiente** |
-| J — Pooling y memoria | ⬜ |
+| **I — VFX / post-processing** | ✅ Completa y verificada |
+| J — Pooling y memoria | ⬜ **Siguiente** |
 | K — Testing | ⬜ |
 
 ### Verificación de la Parte A
@@ -320,9 +328,30 @@ El precio es real y está anotado: no se puede sonar algo que el estado no cuent
 
 **Cambio de control:** la tecla de volver al taller tras morir pasó de **M** a **T**, porque M es la convención universal para silenciar y silenciar tiene que funcionar en cualquier estado.
 
+### Verificación de la Parte I
+
+**El presupuesto se escribió antes de encender nada**, como pide el GDD: objetivo 60 fps con 400 enemigos, techo de 3 ms por frame para el post-procesado, y piso de 45 fps sostenidos durante 4 segundos. Está en `CONFIG.VFX` y **se hace cumplir solo**.
+
+| Criterio | Medición |
+|---|---|
+| Carga máxima | 400 enemigos con bloom: **60 fps**, mínimo 60, 33 draw calls |
+| Coste del bloom | pico de **2.8 ms** contra un techo de 3.0 |
+| Degradación automática | con el piso puesto por encima del fps real, el bloom se apagó a los **4.3 s** (umbral 4), tiró el composer y avisó por consola |
+| Y no vuelve solo | `setEnabled(true)` es rechazado después de degradar; solo la tecla B lo revive, porque eso es una decisión tuya |
+| Con el bloom apagado | 33 → **21 draw calls** y coste 0: no queda un composer copiando la pantalla al pedo |
+| Pool de partículas | 400 muertes el mismo frame piden 2800 partículas: **896 vivas** (tope 900), **1904 descartadas**, 60 fps constantes |
+| Y se vacía | vuelve a 0 en menos de 1.5 s, sin acumular |
+| Sin asignaciones | pendiente de heap **negativa** en 12 s de carga máxima |
+
+**Por qué el pool descarta en vez de crecer.** Es la misma decisión que en las balas: un pool elástico pide memoria justo cuando hay 400 enemigos muriendo, que es el único momento en que el juego no puede permitirse una pausa por recolección de basura. Las partículas son decoración — que falten 1904 en el frame más caótico del juego no se nota; un tirón sí.
+
+**`FrameEvents`: la deducción se hace una sola vez.** El audio y las partículas necesitan exactamente los mismos hechos. Si cada uno comparara el estado por su cuenta, las dos copias se irían separando y terminaría habiendo un chispazo sin sonido, o al revés. Ahora hay un solo lugar que deduce y dos que leen. Fue también el momento de reescribir `GameAudio`, que había nacido con la deducción adentro.
+
+**Un bug encontrado y corregido en el camino:** con el post-procesado, `renderer.info.render.calls` se reinicia en cada pase, así que el panel de diagnóstico marcaba **1 draw call** con la escena entera dibujada. Ahora el contador se reinicia una vez por frame a mano (`info.autoReset = false`) y el número vuelve a ser cierto.
+
 ## Decisiones abiertas
 
-Sigue pendiente de `GDD_v2.md` §6:
+Ya no queda ninguna decisión abierta de `GDD_v2.md` §6. Las dos que había se cerraron:
 
-- **§6.1 Estilo visual**: hoy hay un placeholder neutro (fondo oscuro + grilla + niebla). Falta decidir entre *daylight brillante* y *neón oscuro*.
+- **§6.1 Estilo visual**: **resuelta a favor del neón oscuro.** En un survivor la legibilidad manda, y sobre piso oscuro un objeto brillante se lee solo; el bloom de la Parte I convierte eso en luz, mientras que sobre fondo claro solo lavaría la imagen. Además es lo que el juego ya era: la paleta de armas, las gemas, la grilla y el HUD están construidos así.
 - **§6.3 Personaje**: **resuelta.** El jugador es un soldado procedural generado por código (ver "Verificación de la Parte B"). No hay `.glb` que versionar. Si algún día hace falta una cámara de cerca, se reemplaza por un GLTF con skinning sin tocar `Player.js`.
