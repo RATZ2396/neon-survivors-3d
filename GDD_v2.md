@@ -182,6 +182,7 @@ Cada una tiene: qué se hace, de qué depende, cuándo se considera terminada. P
 - `UIManager.js`, `MenuManager.js`, `FloatingTextManager.js`.
 - **Acá se resuelve la contradicción visual de §0.4** una vez que el usuario decida en §6.1.
 - **Depende de:** ninguna otra Parte de simulación — puede avanzar en paralelo desde el día 1 con datos mock.
+- **Estado: hecha y verificada.** Inicio/taller, HUD, menú de nivel, pausa, muerte y números flotantes. `UIManager`/`MenuManager` no se escribieron: cada pantalla se muestra y se esconde sola, y un gestor por encima habría sido una capa sin trabajo propio.
 
 ### Parte H — Audio
 
@@ -202,11 +203,13 @@ Cada una tiene: qué se hace, de qué depende, cuándo se considera terminada. P
 - `PerformanceMonitor` simple (FPS + heap), visible solo en dev, sin overlays de colores compitiendo entre sí.
 - Cualquier métrica que se documente acá debe venir de una captura real del profiler, no de una estimación.
 - **Depende de:** que Partes A-D ya usen las estructuras que este sistema va a pooling.
+- **Estado: hecha y verificada.** No se escribió un `ObjectPool` genérico: cada sistema tiene su pool tipado con `Float32Array`, más rápido y más simple que una clase genérica sobre objetos. Auditoría con captura real de 210 s: 60 fps sin una caída y heap plano. Tres asignaciones por frame eliminadas. Ver README, "Verificación de la Parte J".
 
 ### Parte K — Testing y QA
 
 - `TestFramework.js` ya existe (291 líneas) pero no corre en ningún lado automatizado. Conectarlo a un script `npm test` real.
 - **Depende de:** que los sistemas a testear ya estén migrados (no tiene sentido testear el monolito viejo).
+- **Estado: hecha y verificada.** `npm test` corre 91 tests sin dependencias. No se migró el `TestFramework.js` viejo: lo que faltaba era el botón, no el framework. Ver README, "Verificación de la Parte K".
 
 
 ### Parte L — Meta-progresión (perfil, recompensa y mejoras permanentes)

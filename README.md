@@ -18,6 +18,7 @@ Abre en `http://localhost:5173`.
 | **WASD** / joystick en pantallas < 769px | mover (es lo único que se controla: el disparo es automático) |
 | **1 … 4** o clic, en el menú de nivel | elegir la habilidad o mejora |
 | **L** | abrir el laboratorio de habilidades (solo en desarrollo) |
+| **Esc** o **P** | pausar / seguir |
 | **M** | silenciar / restaurar el sonido (se recuerda en el perfil) |
 | **B** | encender / apagar el bloom, para comparar |
 | **R** / **T** tras morir | reintentar con la misma arma / volver al taller |
@@ -116,7 +117,8 @@ src/
 ├── config/MetaDefs.js            árboles de mejora permanente, uno por arma
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 ├── config/VfxDefs.js             las 7 explosiones de partículas
-└── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
+├── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
+└── tests/                        `npm test` — 91 tests, sin dependencias
 ```
 
 `HUD.js` y `PerformanceMonitor.js` están separados a propósito y no comparten datos: uno es información del **juego**, el otro es **diagnóstico**. En la versión anterior estaban mezclados en overlays superpuestos y no se distinguía cuál era cuál.
@@ -152,12 +154,12 @@ Ninguna de esas cosas requiere tocar lógica de simulación. Ese es el punto.
 | **D — Armas y combate** | ✅ Completa y verificada |
 | **E — Skills y progresión** | ✅ Completa y verificada |
 | **F — Boss** | ✅ Completa y verificada |
-| G — UI/HUD/menús | 🟡 Inicio, taller, HUD, menú de nivel y muerte hechos; falta pausa |
+| **G — UI/HUD/menús** | ✅ Completa y verificada |
 | **L — Meta-progresión** (perfil, moneda, mejoras de arma) | ✅ Completa y verificada |
 | **H — Audio** | ✅ Completa y verificada |
 | **I — VFX / post-processing** | ✅ Completa y verificada |
-| J — Pooling y memoria | ⬜ **Siguiente** |
-| K — Testing | ⬜ |
+| **J — Pooling y memoria** | ✅ Completa y verificada |
+| **K — Testing** | ✅ Completa y verificada |
 
 ### Verificación de la Parte A
 
@@ -348,6 +350,72 @@ El precio es real y está anotado: no se puede sonar algo que el estado no cuent
 **`FrameEvents`: la deducción se hace una sola vez.** El audio y las partículas necesitan exactamente los mismos hechos. Si cada uno comparara el estado por su cuenta, las dos copias se irían separando y terminaría habiendo un chispazo sin sonido, o al revés. Ahora hay un solo lugar que deduce y dos que leen. Fue también el momento de reescribir `GameAudio`, que había nacido con la deducción adentro.
 
 **Un bug encontrado y corregido en el camino:** con el post-procesado, `renderer.info.render.calls` se reinicia en cada pase, así que el panel de diagnóstico marcaba **1 draw call** con la escena entera dibujada. Ahora el contador se reinicia una vez por frame a mano (`info.autoReset = false`) y el número vuelve a ser cierto.
+
+### Verificación de la Parte G
+
+| Criterio | Medición |
+|---|---|
+| Pausa | Esc o P: el tiempo quedó clavado en **2.51 s** durante 1.5 s reales, con enemigos y vida congelados |
+| Sin salto al volver | primer frame tras despausar: **delta 0.017 s**, normal — `Time` recorta con MAX_DELTA |
+| Cómo se pausa | el loop no entra en la rama de PLAYING; **ningún sistema sabe que la pausa existe** |
+| Números flotantes | pool fijo de 18 divs, proyectados del mundo a pantalla, subiendo y apagándose |
+| Qué muestran | solo daño al boss, daño recibido y subida de nivel |
+
+**Por qué no hay un número por cada impacto.** Con 400 enemigos, un número por golpe no es información: es una cortina que tapa justo lo que hay que ver, que es de dónde viene la horda. El daño a la horda ya se comunica solo — el enemigo desaparece. El del boss sí importa, porque es el único blanco que aguanta y no tenés otra forma de saber si le estás haciendo mella.
+
+`UIManager` y `MenuManager`, que el GDD nombraba, no se escribieron: cada pantalla se muestra y se esconde sola, y un gestor por encima habría sido una capa sin trabajo propio.
+
+### Verificación de la Parte J
+
+El GDD exige que **toda métrica de esta parte venga de una captura real, no de una estimación**. Estas salen de una partida de **3 minutos y medio** con carga sostenida, muestreando cada 5 segundos.
+
+| Criterio | Medición |
+|---|---|
+| Duración | **210 s** continuos · 156 enemigos promedio · 3229 bajas · 2 bosses |
+| Framerate | **60 fps de mínimo y de máximo** — ni una caída en toda la corrida |
+| Heap | oscila entre **39.7 y 41.5 MB**; empieza en 40.4 y termina en 40.5 |
+| Forma de la curva | diente de sierra, no rampa: es el recolector trabajando, no una fuga |
+
+**Tres asignaciones por frame encontradas y eliminadas** — la auditoría era el punto de esta parte, no adornarla:
+
+1. `GameManager` armaba un **objeto literal nuevo cada frame** para pasarle datos al panel de diagnóstico: 3600 objetos por minuto de basura, incluso con el panel apagado. Ahora se reserva una vez, se rellena en el lugar, y ni se toca si el panel no está encendido.
+2. El HUD construía una **cadena y un array intermedio cada frame** para preguntarse si tu build había cambiado, cuando en el 99.9% de los frames la respuesta es "no". Ahora la firma es un número, calculado con enteros.
+3. La barra de vida del boss **escribía un estilo en el DOM todos los frames**, forzando recálculo de layout para un cambio invisible. Ahora solo escribe cuando el cambio se ve, igual que las otras barras.
+
+**Estado de todos los pools**, que es lo que esta parte pedía conectar de verdad:
+
+| Pool | Tope | Pico observado | Si se llena |
+|---|---|---|---|
+| Enemigos | 400 | 400 | no spawnea más |
+| Proyectiles | 600 | ~120 | el disparo se pierde |
+| Gemas | 600 | — | la XP se acredita directo, no se pierde |
+| Partículas | 900 | 896 | se descarta la nueva |
+| Números flotantes | 18 | 18 | se pisa el más viejo |
+| Voces de audio | 20 | 4 | entra solo si tiene más prioridad |
+
+Los dos criterios opuestos son deliberados: las partículas descartan lo nuevo porque son decoración, los números flotantes pisan lo viejo porque ahí lo último que pasó es lo que importa.
+
+No se escribió un `ObjectPool` genérico como sugería el GDD. Cada sistema tiene su pool tipado con `Float32Array`, que es más rápido y más simple que una clase genérica sobre objetos — y no había un solo caso que necesitara compartir código entre ellos.
+
+### Verificación de la Parte K
+
+```bash
+npm test
+```
+
+**91 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
+
+Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
+
+Tres merecen mención porque **defienden bugs que ya ocurrieron**:
+
+- *"clear reinicia el contador de bajas"* — el bug que destapó la recompensa: las bajas se arrastraban entre partidas y reintentar pagaba de más.
+- *"el daño diferido le pega a quien corresponde, no al que se mudó"* — la trampa del borrado por intercambio, el bug más caro de encontrar del proyecto.
+- *"NINGUNA mejora toca WEAPON_DEFS"* — compra todos los niveles de todos los árboles de las tres armas y compara la tabla contra una copia. Es la restricción de arquitectura del GDD Parte L, ahora imposible de violar sin que el test grite.
+
+**Lo que NO se testea acá, a propósito:** que la escopeta se sienta contundente o que el bloom quede lindo no lo dice un `assert`. Eso se verifica en el navegador y está documentado arriba, parte por parte.
+
+Los tests corren en Node, sin navegador y sin WebGL. Eso salió gratis, y no por suerte: los datos y el dibujo estaban separados desde el principio, así que las clases que deciden el resultado de una partida no necesitan una pantalla para funcionar.
 
 ## Decisiones abiertas
 

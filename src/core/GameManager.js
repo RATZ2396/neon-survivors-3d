@@ -79,6 +79,23 @@ export class GameManager {
     this._lastReward = 0
     /** Draw calls del frame anterior; el panel corre antes de dibujar. */
     this._lastCalls = 0
+    /**
+     * Estadísticas para el panel de diagnóstico. Se reserva UNA vez y se
+     * rellena en el lugar: antes se armaba un objeto literal por frame, que a
+     * 60 Hz son 3600 objetos por minuto de basura para algo que ni siquiera
+     * está encendido en producción.
+     */
+    this._stats = {
+      x: 0,
+      z: 0,
+      speed: 0,
+      moving: false,
+      inputX: 0,
+      inputZ: 0,
+      enemies: 0,
+      projectiles: 0,
+      renderCalls: 0,
+    }
     this.upgradeMenu = new UpgradeMenu((up) => this._applyUpgrade(up))
 
     this.boss = new BossController(this.enemies, this.waves, this.player, this.scene)
@@ -459,17 +476,21 @@ export class GameManager {
 
       this.floaters.update(delta, this.camera)
       this.hud.update(delta)
-      this.monitor.update(delta, {
-        x: this.player.position.x,
-        z: this.player.position.z,
-        speed: this.player.currentSpeed,
-        moving: this.player.isMoving,
-        inputX: move.x,
-        inputZ: move.z,
-        enemies: this.enemies.count,
-        projectiles: this.projectiles.count,
-        renderCalls: this._lastCalls,
-      })
+      // Ni se rellena si el panel está apagado: en producción esto es cero
+      // trabajo, no "trabajo barato".
+      if (this.monitor.enabled) {
+        const st = this._stats
+        st.x = this.player.position.x
+        st.z = this.player.position.z
+        st.speed = this.player.currentSpeed
+        st.moving = this.player.isMoving
+        st.inputX = move.x
+        st.inputZ = move.z
+        st.enemies = this.enemies.count
+        st.projectiles = this.projectiles.count
+        st.renderCalls = this._lastCalls
+        this.monitor.update(delta, st)
+      }
     } else if (this.state === GAME_STATE.GAME_OVER) {
       this.hud.showGameOver(
         this.enemies.killCount,

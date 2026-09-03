@@ -30,6 +30,7 @@ export class HUD {
     this._lastHp = -1
     this._lastXp = -1
     this._lastReadiness = -2
+    this._lastBoss = -1
 
     this._build()
   }
@@ -69,7 +70,7 @@ export class HUD {
 
     this.slots = root.querySelector('#hud-weapons')
     this.root = root
-    this._builtLoadout = ''
+    this._builtLoadout = -1
   }
 
   /**
@@ -87,8 +88,15 @@ export class HUD {
     const dmg = Math.round(wDef.damage * perm.damageMult * 10) / 10
     const cd = Math.round(wDef.cooldown * perm.cooldownMult * 100) / 100
     const count = this.weapons.shotCount
-    const firma =
-      `${wDef.key}:${dmg}:${cd}:${count}|` + owned.map((o) => `${o.defIndex}:${o.level}`).join(',')
+    // Firma NUMÉRICA, no una cadena. Esto corre todos los frames y la versión
+    // anterior armaba un texto y un array intermedio cada vez, para que en el
+    // 99.9% de los frames el resultado fuera "no cambió nada".
+    let firma = this.weapons.weaponIndex * 31 + count
+    firma = firma * 31 + Math.round(dmg * 10)
+    firma = firma * 31 + Math.round(cd * 100)
+    for (let i = 0; i < owned.length; i++) {
+      firma = firma * 31 + owned[i].defIndex * 8 + owned[i].level
+    }
     if (firma === this._builtLoadout) return
     this._builtLoadout = firma
 
@@ -154,7 +162,11 @@ export class HUD {
     }
     if (!active) return
 
+    // Como en las otras barras: solo se escribe en el DOM si el cambio se ve.
+    // Escribir un estilo por frame fuerza recálculo de layout para nada.
     const ratio = Math.max(0, this.boss.hp / this.boss.maxHp)
+    if (Math.abs(ratio - this._lastBoss) < 0.002) return
+    this._lastBoss = ratio
     this.bossFill.style.width = (ratio * 100).toFixed(1) + '%'
   }
 
