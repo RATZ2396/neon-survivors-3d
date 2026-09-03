@@ -44,6 +44,10 @@ export class FrameEvents {
     /** '' | 'TELEGRAPH' | 'CHARGING' si cambió este frame; null si no cambió. */
     this.bossPhase = null
     this.bossSlam = false
+    /** Daño que el boss recibió este frame (0 si no hay boss). */
+    this.bossDamage = 0
+    /** Daño que recibió el jugador este frame. */
+    this.playerDamage = 0
 
     this.reset()
   }
@@ -58,6 +62,8 @@ export class FrameEvents {
     this._bossDefeated = this.boss.defeated
     this._chargePhase = ''
     this._slamWarning = false
+    this._bossHp = 0
+    this._playerHp = this.player.hp
     this._clear()
   }
 
@@ -73,6 +79,8 @@ export class FrameEvents {
     this.bossDied = false
     this.bossPhase = null
     this.bossSlam = false
+    this.bossDamage = 0
+    this.playerDamage = 0
   }
 
   /**
@@ -101,6 +109,10 @@ export class FrameEvents {
     if (this.player.invulnTimer > this._invuln) this.playerHit = true
     this._invuln = this.player.invulnTimer
 
+    // Cuánto bajó la vida. Curarse no cuenta como daño negativo.
+    if (this.player.hp < this._playerHp) this.playerDamage = this._playerHp - this.player.hp
+    this._playerHp = this.player.hp
+
     if (this.player.isDead && !this._dead) this.playerDied = true
     this._dead = this.player.isDead
 
@@ -109,6 +121,16 @@ export class FrameEvents {
 
     const bossActive = this.boss.active
     if (bossActive && !this._bossActive) this.bossSpawned = true
+
+    // El daño al boss sale de mirarle la vida, no de que el arma avise: así
+    // cuenta igual lo que le hacen las balas, las habilidades y el veneno que
+    // se agregue mañana.
+    if (bossActive) {
+      if (this._bossActive && this.boss.hp < this._bossHp) {
+        this.bossDamage = this._bossHp - this.boss.hp
+      }
+      this._bossHp = this.boss.hp
+    }
     this._bossActive = bossActive
 
     if (this.boss.defeated > this._bossDefeated) {

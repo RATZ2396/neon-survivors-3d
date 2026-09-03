@@ -220,6 +220,19 @@ export const CONFIG = {
     REWARD_MIN: 5,
   },
 
+  UI: {
+    /**
+     * Números flotantes a la vez. Si se llena, se pisa el más viejo: acá lo
+     * último que pasó es lo que importa (al revés que en las partículas, donde
+     * lo nuevo se descarta porque son decoración).
+     */
+    FLOAT_MAX: 18,
+    /** Segundos que dura cada número. */
+    FLOAT_LIFE: 0.9,
+    /** A qué velocidad sube, en u/s. */
+    FLOAT_RISE: 2.2,
+  },
+
   /**
    * VFX y post-procesado.
    *

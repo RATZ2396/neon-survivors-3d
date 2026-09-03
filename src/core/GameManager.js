@@ -23,6 +23,8 @@ import { FrameEvents } from './FrameEvents.js'
 import { ParticleSystem } from '../vfx/ParticleSystem.js'
 import { GameVfx } from '../vfx/GameVfx.js'
 import { PostFX } from '../vfx/PostFX.js'
+import { PauseMenu } from '../ui/PauseMenu.js'
+import { FloatingText } from '../ui/FloatingText.js'
 import { SkillLab } from '../ui/SkillLab.js'
 import { rollUpgrades } from '../config/UpgradeDefs.js'
 import { PerformanceMonitor } from '../perf/PerformanceMonitor.js'
@@ -103,6 +105,12 @@ export class GameManager {
     this.particles = new ParticleSystem(this.scene)
     this.vfx = new GameVfx(this.particles, sistemas)
     this.postfx = new PostFX(this.renderer, this.scene, this.camera)
+    this.floaters = new FloatingText()
+    this.pauseMenu = new PauseMenu({
+      onResume: () => this.resume(),
+      onQuit: () => this.toMenu(),
+      onToggleSound: () => this._toggleSound(),
+    })
 
     this.hud = new HUD(
       this.player,
@@ -138,9 +146,15 @@ export class GameManager {
   _onKey(e) {
     // Silencio: funciona en cualquier estado, como en cualquier otro juego.
     if (e.code === 'KeyM') {
-      this.profile.muted = this.sound.toggleMute()
-      this.profile.save()
-      this.startMenu.refreshSound()
+      this._toggleSound()
+      return
+    }
+
+    // Pausa. Solo tiene sentido jugando o ya pausado: en el taller, en el menú
+    // de nivel o muerto no hay nada que congelar.
+    if (e.code === 'Escape' || e.code === 'KeyP') {
+      if (this.state === GAME_STATE.PLAYING) this.pause()
+      else if (this.state === GAME_STATE.PAUSED) this.resume()
       return
     }
 
@@ -155,6 +169,40 @@ export class GameManager {
     // R reintenta con la misma arma; T vuelve al taller.
     if (e.code === 'KeyR') this.startRun(this.startMenu.selected)
     else if (e.code === 'KeyT') this.toMenu()
+  }
+
+  _toggleSound() {
+    this.profile.muted = this.sound.toggleMute()
+    this.profile.save()
+    this.startMenu.refreshSound()
+    this.pauseMenu.refreshSound(this.profile.muted)
+  }
+
+  /**
+   * Pausa de verdad: el loop deja de entrar en la rama de PLAYING.
+   *
+   * Ningún sistema tiene que saber que la pausa existe, igual que con el menú
+   * de subir de nivel. Y el salto de tiempo no importa: Time recorta el delta,
+   * así que volver después de diez minutos entrega un frame normal.
+   */
+  pause() {
+    if (this.state !== GAME_STATE.PLAYING) return
+    this.state = GAME_STATE.PAUSED
+    this.pauseMenu.show(
+      {
+        tiempo: this.waves.elapsed,
+        bajas: this.enemies.killCount,
+        nivel: this.progression.level,
+        arma: this.weapons.def.name,
+      },
+      this.profile.muted,
+    )
+  }
+
+  resume() {
+    if (this.state !== GAME_STATE.PAUSED) return
+    this.pauseMenu.hide()
+    this.state = GAME_STATE.PLAYING
   }
 
   _upgradeContext() {
@@ -201,6 +249,9 @@ export class GameManager {
    */
   _endRun() {
     this.state = GAME_STATE.GAME_OVER
+    // Los números dejan de actualizarse al salir de PLAYING: si no se limpian,
+    // quedan congelados debajo de la pantalla de muerte.
+    this.floaters.clear()
     this._lastReward = this.profile.finishRun(
       this.waves.elapsed,
       this.enemies.killCount,
@@ -210,6 +261,7 @@ export class GameManager {
 
   /** Vuelve a la pantalla de elección de arma. */
   toMenu() {
+    this.pauseMenu.hide()
     this._clearRun()
     this.hud.hideGameOver()
     this.state = GAME_STATE.MENU
@@ -237,6 +289,29 @@ export class GameManager {
     this.events.reset()
   }
 
+  /**
+   * Números flotantes. Solo tres cosas: lo que le hacés al boss, lo que te
+   * hacen a vos y subir de nivel.
+   *
+   * Un número por cada impacto sobre 400 enemigos no sería información, sería
+   * una cortina — y taparía justo lo que hay que ver. El daño a la horda ya se
+   * comunica solo: el enemigo desaparece.
+   */
+  _spawnFloaters() {
+    const ev = this.events
+    const p = this.player.position
+
+    if (ev.bossDamage > 0) {
+      this.floaters.spawn(String(Math.round(ev.bossDamage)), this.boss.lastX, 3.4, this.boss.lastZ, 'dano')
+    }
+    if (ev.playerDamage > 0) {
+      this.floaters.spawn('-' + Math.round(ev.playerDamage), p.x, 2.1, p.z, 'recibido')
+    }
+    if (ev.levels > 0) {
+      this.floaters.spawn('NIVEL ' + this.progression.level, p.x, 2.6, p.z, 'nivel')
+    }
+  }
+
   /** Deja todos los sistemas en su estado inicial, sin recrear nada. */
   _clearRun() {
     this.player.reset()
@@ -245,6 +320,7 @@ export class GameManager {
     this.projectiles.clear()
     this.gems.clear()
     this.particles.clear()
+    this.floaters.clear()
     this.waves.reset()
     this.weapons.reset()
     this.skills.reset()
@@ -370,6 +446,7 @@ export class GameManager {
       this.events.update(picked + overflow, subidos)
       this.audio.update(this.events)
       this.vfx.update(this.events)
+      this._spawnFloaters()
       this.particles.update(delta)
 
       this.enemies.sync(this.time.elapsed, this.player.position)
@@ -380,6 +457,7 @@ export class GameManager {
       if (this.player.isDead) this._endRun()
       else if (this._pendingLevels > 0) this._openUpgradeMenu()
 
+      this.floaters.update(delta, this.camera)
       this.hud.update(delta)
       this.monitor.update(delta, {
         x: this.player.position.x,
