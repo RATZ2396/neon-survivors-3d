@@ -241,9 +241,16 @@ export const CONFIG = {
    * pooling fue de lo más caro en hardware modesto).
    *
    *   Objetivo:  60 fps con 400 enemigos, en la máquina de desarrollo.
-   *   Techo:     el bloom no puede costar más de BLOOM_BUDGET_MS por frame.
    *   Piso:      si el promedio cae por debajo de DEGRADE_FPS durante
    *              DEGRADE_SECONDS seguidos, el bloom SE APAGA SOLO y no vuelve.
+   *
+   * NO hay un techo en milisegundos, y no es un olvido. Medir lo que cuesta el
+   * bloom desde JavaScript no se puede: `performance.now()` alrededor de una
+   * llamada WebGL mide el tiempo de ENVÍO en CPU, no el trabajo en GPU, que es
+   * asíncrono; y lo único envolvible es `composer.render()`, que además del
+   * bloom dibuja la escena entera. Un número así mentiría, y un presupuesto que
+   * miente es peor que no tenerlo. Los fps sostenidos sí son observables, y son
+   * además lo que el jugador siente.
    *
    * Ese apagado automático es el punto: una GPU integrada no tiene por qué
    * pagar el efecto, y el jugador no tiene por qué saber qué es un composer
@@ -264,8 +271,6 @@ export const CONFIG = {
     BLOOM_STRENGTH: 0.62,
     BLOOM_RADIUS: 0.45,
 
-    /** Coste máximo aceptable del post-procesado, en milisegundos por frame. */
-    BLOOM_BUDGET_MS: 3.0,
     /** Por debajo de estos fps sostenidos, el bloom se apaga solo. */
     DEGRADE_FPS: 45,
     DEGRADE_SECONDS: 4,

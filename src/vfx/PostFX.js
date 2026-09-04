@@ -37,8 +37,6 @@ export class PostFX {
     this.degraded = false
 
     this._slowFor = 0
-    /** Milisegundos que costó el último frame de post-procesado. */
-    this.lastCostMs = 0
 
     this.composer = null
     if (this.enabled) this._build()
@@ -75,16 +73,13 @@ export class PostFX {
    */
   render(fps, delta) {
     if (!this.enabled) {
-      this.lastCostMs = 0
       this.renderer.render(this.scene, this.camera)
       return
     }
 
     this._enforceBudget(fps, delta)
 
-    const t0 = performance.now()
     this.composer.render(delta)
-    this.lastCostMs = performance.now() - t0
   }
 
   _enforceBudget(fps, delta) {

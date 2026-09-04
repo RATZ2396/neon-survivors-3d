@@ -71,4 +71,7 @@ export const SKILL_DEFS = [
 export const SKILL = {}
 for (let i = 0; i < SKILL_DEFS.length; i++) SKILL[SKILL_DEFS[i].key] = i
 
-export const MAX_SKILL_LEVEL = SKILL_DEFS[0].levels.length
+// Adrede NO hay un MAX_SKILL_LEVEL global: el tope es `def.levels.length`,
+// por habilidad, y lo aplica SkillSystem. Un techo global tendria que salir
+// de una habilidad cualquiera y valdria solo mientras todas tengan la misma
+// cantidad de niveles — o sea, hasta la primera que no.
