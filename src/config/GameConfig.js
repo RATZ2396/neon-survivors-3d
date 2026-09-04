@@ -159,6 +159,21 @@ export const CONFIG = {
      * si no hiciera nada.
      */
     IMPLIED_SPREAD_DEG: 6,
+
+    /**
+     * Radio de amenaza para la elección de blanco.
+     *
+     * El arma prefiere al boss, pero NO si tenés basura pegada: dentro de este
+     * radio manda lo que está encima tuyo. Sin esta condición la prioridad era
+     * absoluta y el resultado, medido en una partida real, fue que el ritmo de
+     * matar se caía a un tercio en cuanto aparecía el boss (de 1.37 a 0.46
+     * bajas por segundo) mientras la horda trepaba de 1 a 28 enemigos. Le
+     * pegabas al boss y te mataba lo que no estabas mirando.
+     *
+     * Un poco más grande que el alcance del cuerpo a cuerpo: lo que ya te está
+     * por tocar cuenta como amenaza.
+     */
+    PRIORITY_GUARD_RADIUS: 6,
   },
 
   PROGRESSION: {
@@ -196,10 +211,20 @@ export const CONFIG = {
     /** Vida extra por cada boss ya aparecido (+80% el segundo, +160% el tercero...). */
     HP_SCALE_PER_BOSS: 0.8,
     /**
-     * Cuánto se estira el intervalo del spawner durante el duelo. Pelear al boss
-     * adentro de una oleada entera no es difícil, es ruido visual.
+     * Cuánto se estira el intervalo del spawner durante el duelo.
+     *
+     * EL BOSS PELEA SOLO. Estaba en 2.5 y no alcanzaba ni de lejos: medido en
+     * partidas reales, la arena se rehacía de 1 a 68 enemigos mientras durabas
+     * el duelo. Eso rompía las dos mitades del combate a la vez — el arma
+     * nunca miraba al boss porque siempre tenía basura encima, y la basura te
+     * mataba mientras mirabas al boss.
+     *
+     * Con 12 queda un goteo: alguna gema para recoger y algo de presión, pero
+     * el duelo es un duelo. Aparecer adentro de una oleada entera es lo que va
+     * a hacer el MINIJEFE, que es otra cosa: ese sale entre la horda a
+     * propósito.
      */
-    SPAWN_SLOWDOWN: 2.5,
+    SPAWN_SLOWDOWN: 12,
   },
 
   /**

@@ -137,9 +137,14 @@ export class WeaponSystem {
    *
    * Ahora hay dos ligas. Si algún enemigo PRIORITARIO (el boss, y más adelante
    * los elites) está a tiro, se elige el más cercano de esos; si no hay
-   * ninguno, el más cercano de todos. Que sea "el más cercano dentro de su
-   * liga" y no "el prioritario esté donde esté" importa: si el boss quedó
-   * lejísimos, seguís limpiando lo que tenés encima.
+   * ninguno, el más cercano de todos.
+   *
+   * PERO la prioridad no es absoluta, y esa condición se ganó en una partida
+   * real: con prioridad absoluta el ritmo de matar se caía a un tercio en
+   * cuanto aparecía el boss —de 1.37 a 0.46 bajas por segundo— mientras la
+   * horda trepaba de 1 a 28. Le pegabas al boss y te mataba lo que no estabas
+   * mirando. Así que si hay algo común DENTRO DEL RADIO DE AMENAZA, eso va
+   * primero: al boss se le pega cuando tenés aire, no cuando te están comiendo.
    */
   _findTarget(range) {
     const e = this.enemies
@@ -168,6 +173,10 @@ export class WeaponSystem {
         best = i
       }
     }
+
+    // Lo que ya te tiene encima manda sobre cualquier prioridad.
+    const guard = CONFIG.COMBAT.PRIORITY_GUARD_RADIUS
+    if (best !== -1 && bestSq <= guard * guard) return best
 
     return priority !== -1 ? priority : best
   }

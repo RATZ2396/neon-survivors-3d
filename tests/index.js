@@ -18,6 +18,7 @@ import { VFX_DEFS } from '../src/config/VfxDefs.js'
 import { FrameEvents } from '../src/core/FrameEvents.js'
 import { BossController } from '../src/enemies/BossController.js'
 import { BOSS_DEFS } from '../src/config/BossDefs.js'
+import { WeaponSystem } from '../src/combat/WeaponSystem.js'
 
 /** Escena de mentira: los sistemas solo le piden add(). */
 const escena = { add() {} }
@@ -975,6 +976,80 @@ describe('Boss', () => {
     expect(boss.chargePhase).toBe('')
     // speed es un Float32Array: 2.3 no existe exacto en 32 bits.
     expect(enemies.speed[i]).toBeCloseTo(ENEMY_DEFS[ENEMY_TYPE.BOSS].speed, 1e-5)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Elección de blanco', () => {
+  function armar() {
+    const enemies = new EnemyManager(escena)
+    const player = { position: { x: 0, y: 0, z: 0 }, isMoving: false, faceTowards() {}, recoil() {} }
+    const disparos = []
+    const projectiles = { fire: (x, z, dx, dz) => disparos.push({ dx, dz }) }
+    const w = new WeaponSystem(player, enemies, projectiles)
+    w.equip('PISTOL')
+    return { w, enemies, player, disparos }
+  }
+
+  const LEJOS = CONFIG.COMBAT.PRIORITY_GUARD_RADIUS + 4
+
+  test('sin prioritarios le pega al más cercano', () => {
+    const { w, enemies } = armar()
+    const lejano = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 15)
+    const cerca = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 3)
+    expect(w._findTarget(w.range)).toBe(cerca)
+    expect(lejano).toBe(0)
+  })
+
+  test('con el boss lejos y nada encima, le apunta al boss', () => {
+    const { w, enemies } = armar()
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, LEJOS)
+    const boss = enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS + 3)
+    // El boss está MÁS LEJOS que la basura y aun así gana.
+    expect(w._findTarget(w.range)).toBe(boss)
+  })
+
+  test('pero lo que tenés encima manda sobre el boss', () => {
+    const { w, enemies } = armar()
+    enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS)
+    const pegado = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 2)
+    expect(w._findTarget(w.range)).toBe(pegado)
+  })
+
+  test('el radio de amenaza es el límite exacto', () => {
+    const g = CONFIG.COMBAT.PRIORITY_GUARD_RADIUS
+    const a = armar()
+    a.enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS)
+    const dentro = a.enemies.spawn(ENEMY_TYPE.NORMAL, 0, g - 0.5)
+    expect(a.w._findTarget(a.w.range)).toBe(dentro)
+
+    const b = armar()
+    const boss = b.enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS)
+    b.enemies.spawn(ENEMY_TYPE.NORMAL, 0, g + 0.5)
+    expect(b.w._findTarget(b.w.range)).toBe(boss)
+  })
+
+  test('nada a tiro devuelve -1', () => {
+    const { w, enemies } = armar()
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, w.range + 5)
+    expect(w._findTarget(w.range)).toBe(-1)
+  })
+
+  test('en manual dispara hacia el mouse aunque no haya nadie', () => {
+    const { w, disparos } = armar()
+    w.aimActive = true
+    w.aimX = 10
+    w.aimZ = 0
+    expect(w._fire()).toBe(true)
+    expect(disparos.length).toBe(1)
+    // El eje X del disparo tiene que apuntar a +X, que es donde puse el mouse.
+    expect(disparos[0].dx).toBeCloseTo(1, 1e-6)
+  })
+
+  test('en automático sin blanco no dispara', () => {
+    const { w, disparos } = armar()
+    expect(w._fire()).toBe(false)
+    expect(disparos.length).toBe(0)
   })
 })
 

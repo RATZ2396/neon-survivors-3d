@@ -72,7 +72,14 @@ export const ENEMY_DEFS = [
     /** Frena las balas. La basura no; él sí. Ver ProjectileManager. */
     blocksShots: true,
     name: 'The Cube King',
-    hp: 5000,
+    /**
+     * Medido con la pistola base: el boss recibía 43 de daño por segundo, así
+     * que 5000 de vida eran 116 segundos de fuego sostenido — y durante ese
+     * tiempo la horda se acumula. No era una pelea difícil, era una carrera
+     * perdida. Con 2500 el duelo dura ~58 segundos con el arma sin mejorar, y
+     * bastante menos con el taller hecho.
+     */
+    hp: 2500,
     speed: 2.3,
     radius: 2.6,
     damage: 35,

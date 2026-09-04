@@ -36,6 +36,14 @@ export class RunRecorder {
     this.fps = { min: Infinity, suma: 0, muestras: 0 }
     this.boss = []
     this.inicio = null
+    /**
+     * Segundos jugados con el apuntado manual encendido. Sin esto no se puede
+     * leer un informe: si el arma le apuntó poco al boss, no hay forma de
+     * saber si fue culpa de la puntería automática o porque el jugador tomó
+     * el control y decidió otra cosa.
+     */
+    this.segManual = 0
+    this.segAuto = 0
   }
 
   /** Arranca una grabación. Se llama al empezar la partida. */
@@ -71,6 +79,9 @@ export class RunRecorder {
     if (g.projectiles.count > this.picos.proyectiles) this.picos.proyectiles = g.projectiles.count
     if (g.particles.count > this.picos.particulas) this.picos.particulas = g.particles.count
     if (g.gems.count > this.picos.gemas) this.picos.gemas = g.gems.count
+
+    if (g.weapons.aimActive) this.segManual += delta
+    else this.segAuto += delta
 
     const fps = g.monitor.fps
     if (fps > 0) {
@@ -124,6 +135,11 @@ export class RunRecorder {
         alBoss: Math.round(e.dmgToPriority),
         aLaHorda: Math.round(e.dmgToRest),
         pctAlBoss: totalDano > 0 ? +((100 * e.dmgToPriority) / totalDano).toFixed(2) : null,
+      },
+      apuntado: {
+        segManual: +this.segManual.toFixed(1),
+        segAuto: +this.segAuto.toFixed(1),
+        pctManual: +((100 * this.segManual) / (this.segManual + this.segAuto || 1)).toFixed(1),
       },
       punteria: {
         disparos: w.shotsFired,
