@@ -13,23 +13,28 @@ recolección y los enemigos — nunca de sumar armas.
 ## 1. Habilidades
 
 **~~Sacar `Campo de fuerza`~~ — hecho.** Ya no está en `SkillDefs.js`, y con
-ella se fue el `kind` `AURA` entero: `SkillSystem` pasó de tres ramas a dos.
+ella se fue el `kind` `AURA` entero.
 
-Quedan dos capas:
+**~~Las 2 habilidades base que faltaban~~ — hechas.** `Onda expansiva` (daña
+y empuja) y `Dron` (acompañantes que disparan solos). La base quedó en 4:
+escudo orbital, rayo, onda y dron.
 
-- **Base, compartida por todos los personajes:** los orbes/sierras (`Escudo
-  orbital`) **+ 2 más a definir**.
-- **Propias de cada personaje:** 3 por personaje, distintas entre sí, **a
-  definir**. Son al arma lo que el árbol del taller: lo que hace que elegir
-  Pistola o Escopeta cambie la partida entera y no solo cómo disparás.
+**~~Las 3 propias de cada personaje~~ — hechas.** Se decidieron el 2026-09-04
+y son modificadores del arma, no armas nuevas:
 
-Además, unificar arma y habilidad en un solo sistema: `Rayo`, `Escudo orbital`
-y compañía ya tienen daño, enfriamiento y alcance — son armas. Esa división
-hoy solo agrega código.
+| Pistola | Escopeta | Metralleta |
+|---|---|---|
+| Rebote | Impacto (empuje) | Calentamiento |
+| Cañón trasero | Abanico trasero | Doble línea |
+| Perforación total | Doble cañón | Bala explosiva |
 
-**Ojo con la cuenta:** quedan **2 habilidades** (escudo orbital y rayo). El
-mazo de subida de nivel sigue ofreciendo 4 opciones porque hay 6 mejoras de
-estadística, pero está flaco de habilidades hasta que existan las nuevas.
+La cuenta cierra: **7 al alcance por partida** (4 de base + 3 propias) con un
+techo de 4 equipadas, así que nunca las tenés todas.
+
+**Lo que queda del punto 1:** unificar arma y habilidad en un solo sistema.
+`Rayo`, `Escudo orbital` y compañía ya tienen daño, enfriamiento y alcance —
+son armas. Esa división hoy solo agrega código. Ojo que las de `kind: WEAPON`
+ya cruzaron media frontera: viven en `SkillDefs` pero las aplica el arma.
 
 ## 2. Recolección
 

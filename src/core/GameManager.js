@@ -8,6 +8,7 @@ import { EnemyManager } from '../enemies/EnemyManager.js'
 import { WaveManager } from '../enemies/WaveManager.js'
 import { ProjectileManager } from '../combat/ProjectileManager.js'
 import { WeaponSystem } from '../combat/WeaponSystem.js'
+import { createWeaponMods } from '../combat/WeaponMods.js'
 import { ContactDamage } from '../combat/ContactDamage.js'
 import { HUD } from '../ui/HUD.js'
 import { UpgradeMenu } from '../ui/UpgradeMenu.js'
@@ -61,12 +62,27 @@ export class GameManager {
     this.cameraController = new CameraController(this.camera, this.player)
     this.enemies = new EnemyManager(this.scene)
     this.waves = new WaveManager(this.enemies)
-    this.projectiles = new ProjectileManager(this.scene, this.enemies)
-    this.weapons = new WeaponSystem(this.player, this.enemies, this.projectiles)
+    /**
+     * Lo que las habilidades de personaje le cambian al arma. Se crea acá
+     * porque lo comparten tres sistemas que no se conocen entre sí: lo
+     * escribe SkillSystem, lo leen WeaponSystem y ProjectileManager. Es una
+     * sola referencia, mutada en el lugar (ver WeaponMods.js).
+     */
+    this.weaponMods = createWeaponMods()
+
+    this.projectiles = new ProjectileManager(this.scene, this.enemies, this.weaponMods)
+    this.weapons = new WeaponSystem(this.player, this.enemies, this.projectiles, this.weaponMods)
     this.contact = new ContactDamage(this.player, this.enemies)
     this.progression = new Progression()
     this.gems = new GemManager(this.scene)
-    this.skills = new SkillSystem(this.player, this.enemies, this.progression, this.scene)
+    this.skills = new SkillSystem(
+      this.player,
+      this.enemies,
+      this.progression,
+      this.scene,
+      this.projectiles,
+      this.weaponMods,
+    )
     this.weapons.progression = this.progression // las mejoras de partida afectan daño y cadencia
 
     // Perfil: lo único que sobrevive a cerrar el navegador. El arma lo lee al

@@ -174,6 +174,16 @@ export const CONFIG = {
      * por tocar cuenta como amenaza.
      */
     PRIORITY_GUARD_RADIUS: 6,
+
+    /**
+     * Hasta dónde busca la bala su próximo blanco al rebotar.
+     *
+     * Corto a propósito: si fuera el alcance del arma, una sola bala con
+     * rebote barrería media arena y el precio de quedarse sin penetración
+     * dejaría de existir. Nueve unidades es "el de al lado", no "el otro
+     * lado del mapa".
+     */
+    RICOCHET_RANGE: 9,
   },
 
   PROGRESSION: {

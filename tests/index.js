@@ -10,7 +10,10 @@ import { EnemyManager } from '../src/enemies/EnemyManager.js'
 import { ENEMY_DEFS, ENEMY_TYPE } from '../src/config/EnemyDefs.js'
 import { WaveManager, WAVE_STAGES } from '../src/enemies/WaveManager.js'
 import { rollUpgrades, UPGRADE_DEFS } from '../src/config/UpgradeDefs.js'
-import { SKILL_DEFS } from '../src/config/SkillDefs.js'
+import { SKILL_DEFS, SKILL, SKILL_KIND } from '../src/config/SkillDefs.js'
+import { SkillSystem } from '../src/skills/SkillSystem.js'
+import { ProjectileManager } from '../src/combat/ProjectileManager.js'
+import { createWeaponMods, resetWeaponMods } from '../src/combat/WeaponMods.js'
 import { SoundManager } from '../src/audio/SoundManager.js'
 import { SOUND_DEFS } from '../src/config/SoundDefs.js'
 import { ParticleSystem } from '../src/vfx/ParticleSystem.js'
@@ -505,7 +508,9 @@ describe('Mazo de mejoras de partida', () => {
     return {
       progression,
       player: { maxHp: 100, hp: 100, speedMult: 1 },
-      weapons: {},
+      // Con un arma de verdad: sin ella no se puede saber qué habilidades de
+      // personaje corresponden, y el mazo se quedaría solo con la base.
+      weapons: { def: WEAPON_DEFS[WEAPON.PISTOL] },
       skills: {
         owned: [],
         levelOf: () => 0,
@@ -1050,6 +1055,333 @@ describe('Elección de blanco', () => {
     const { w, disparos } = armar()
     expect(w._fire()).toBe(false)
     expect(disparos.length).toBe(0)
+  })
+})
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Tabla de habilidades de personaje', () => {
+  test('cada una nombra un arma que existe', () => {
+    for (const def of SKILL_DEFS) {
+      if (!def.weapon) continue
+      expect(typeof WEAPON[def.weapon]).toBe('number')
+    }
+  })
+
+  test('cada arma tiene exactamente tres', () => {
+    for (const w of WEAPON_DEFS) {
+      expect(SKILL_DEFS.filter((d) => d.weapon === w.key).length).toBe(3)
+    }
+  })
+
+  test('todos los modificadores que declaran existen de verdad', () => {
+    // Este es el test que justifica el archivo WeaponMods. Un typo en una clave
+    // ('ricochett') no rompe nada: la habilidad se equipa, sube de nivel, se ve
+    // en el HUD y no hace absolutamente nada. Es el peor bug posible acá.
+    const validas = createWeaponMods()
+    for (const def of SKILL_DEFS) {
+      if (def.kind !== SKILL_KIND.WEAPON) continue
+      for (const l of def.levels) {
+        expect(l.mods).toBeTruthy()
+        for (const k in l.mods) expect(k in validas).toBe(true)
+      }
+    }
+  })
+
+  test('el neutro no es todo cero, y reset lo respeta', () => {
+    const m = createWeaponMods()
+    expect(m.burstCooldown).toBe(1)
+    expect(m.ricochetKeep).toBe(1)
+
+    m.ramp = 0.5
+    m.burstCooldown = 2
+    m.ricochetKeep = 0.1
+    resetWeaponMods(m)
+    expect(m.ramp).toBe(0)
+    expect(m.burstCooldown).toBe(1)
+    expect(m.ricochetKeep).toBe(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('El mazo filtra por arma', () => {
+  function disponibles(armaKey) {
+    const ctx = {
+      progression: new Progression(),
+      player: { maxHp: 100, hp: 100, speedMult: 1 },
+      weapons: { def: WEAPON_DEFS[WEAPON[armaKey]] },
+      skills: { owned: [], levelOf: () => 0, grant() {} },
+    }
+    return UPGRADE_DEFS.filter((u) => !u.available || u.available(ctx)).map((u) => u.key)
+  }
+
+  test('con la pistola no aparecen las de escopeta ni metralleta', () => {
+    const claves = disponibles('PISTOL')
+    expect(claves).toContain('S_PISTOL_RICOCHET')
+    expect(claves.includes('S_SHOTGUN_KNOCK')).toBe(false)
+    expect(claves.includes('S_SMG_RAMP')).toBe(false)
+  })
+
+  test('cada arma ve las tres suyas', () => {
+    for (const w of WEAPON_DEFS) {
+      const claves = disponibles(w.key)
+      const propias = SKILL_DEFS.filter((d) => d.weapon === w.key)
+      for (const d of propias) expect(claves).toContain('S_' + d.key)
+    }
+  })
+
+  test('la base compartida la ven todas', () => {
+    for (const w of WEAPON_DEFS) {
+      expect(disponibles(w.key)).toContain('S_ORBIT')
+      expect(disponibles(w.key)).toContain('S_PULSE')
+    }
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Habilidades que cambian el arma', () => {
+  function armar(armaKey = 'PISTOL') {
+    const enemies = new EnemyManager(escena)
+    const player = { position: { x: 0, y: 0, z: 0 }, isMoving: false, faceTowards() {}, recoil() {} }
+    const disparos = []
+    const projectiles = {
+      fire: (x, z, dx, dz, def, dmg, boomR = 0, boomD = 0) =>
+        disparos.push({ x, z, dx, dz, dmg, boomR, boomD }),
+    }
+    const mods = createWeaponMods()
+    const w = new WeaponSystem(player, enemies, projectiles, mods)
+    w.equip(armaKey)
+    return { w, enemies, disparos, mods }
+  }
+
+  test('Cañón trasero duplica la andanada y la manda al revés', () => {
+    const { w, enemies, disparos, mods } = armar()
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 5)
+
+    w._fire()
+    const sinHabilidad = disparos.length
+    disparos.length = 0
+
+    mods.backfire = 1
+    mods.backfireDamage = 0.5
+    w._fire()
+
+    expect(disparos.length).toBe(sinHabilidad * 2)
+    expect(disparos[1].dz).toBeCloseTo(-disparos[0].dz, 1e-6)
+    expect(disparos[1].dmg).toBeCloseTo(disparos[0].dmg * 0.5, 1e-6)
+  })
+
+  test('Doble línea sale al costado y en paralelo, no en abanico', () => {
+    const { w, enemies, disparos, mods } = armar('SMG')
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 5)
+    mods.parallel = 2
+    mods.parallelGap = 0.5
+    mods.parallelDamage = 0.8
+
+    w._fire()
+
+    expect(disparos.length).toBe(3)
+    // Mismo rumbo las tres: si se abrieran, sería un abanico y ya existe uno.
+    expect(disparos[1].dx).toBeCloseTo(disparos[0].dx, 1e-6)
+    expect(disparos[2].dx).toBeCloseTo(disparos[0].dx, 1e-6)
+    // Y salen de puntos distintos, uno a cada lado.
+    expect(disparos[1].x).toBeCloseTo(0.5, 1e-6)
+    expect(disparos[2].x).toBeCloseTo(-0.5, 1e-6)
+  })
+
+  test('Bala explosiva sale cada N balas y solo esa', () => {
+    const { w, enemies, disparos, mods } = armar('SMG')
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 5)
+    mods.boomEvery = 3
+    mods.boomRadius = 2
+    mods.boomDamage = 40
+
+    for (let i = 0; i < 6; i++) w._fire()
+
+    expect(disparos.length).toBe(6)
+    expect(disparos.filter((d) => d.boomR > 0).length).toBe(2)
+    expect(disparos[2].boomR).toBe(2)
+    expect(disparos[5].boomD).toBe(40)
+  })
+
+  test('Doble cañón encarece la recarga y suelta la ráfaga después', () => {
+    const { w, enemies, disparos, mods } = armar('SHOTGUN')
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 5)
+    const recargaBase = w.def.cooldown * w.cooldownMult
+
+    mods.burst = 1
+    mods.burstDelay = 0.1
+    mods.burstCooldown = 1.5
+    expect(w.def.cooldown * w.cooldownMult).toBeCloseTo(recargaBase * 1.5, 1e-6)
+
+    w.update(0.016)
+    const primera = disparos.length
+    expect(primera).toBe(w.shotCount)
+
+    w.update(0.05) // todavía no
+    expect(disparos.length).toBe(primera)
+    w.update(0.06) // ahora sí
+    expect(disparos.length).toBe(primera * 2)
+  })
+
+  test('Calentamiento acelera con fuego sostenido y se va al parar', () => {
+    const { w, enemies, mods } = armar('SMG')
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 5)
+    mods.ramp = 0.4
+    mods.rampTime = 1
+
+    const frio = w.cooldownMult
+    for (let i = 0; i < 60; i++) w.update(1 / 60)
+    expect(w.cooldownMult).toBeLessThan(frio)
+    expect(w._heat).toBeCloseTo(1, 0.02)
+
+    // Sin nadie a tiro no dispara, y el arma se enfría.
+    enemies.clear()
+    for (let i = 0; i < 60; i++) w.update(1 / 60)
+    expect(w._heat).toBe(0)
+    expect(w.cooldownMult).toBeCloseTo(frio, 1e-6)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Balas con habilidades', () => {
+  const PISTOLA = WEAPON_DEFS[WEAPON.PISTOL]
+
+  function armar() {
+    const enemies = new EnemyManager(escena)
+    const mods = createWeaponMods()
+    return { enemies, p: new ProjectileManager(escena, enemies, mods), mods }
+  }
+
+  /** Una bala saliendo del origen hacia +Z, con la rejilla al día. */
+  function tirar(p, enemies, def = PISTOLA) {
+    enemies.grid.build(enemies.posX, enemies.posZ, enemies.count)
+    p.fire(0, 0, 0, 1, def)
+  }
+
+  test('sin Perforación total, un tanque frena la bala', () => {
+    const { enemies, p } = armar()
+    enemies.spawn(ENEMY_TYPE.TANK, 0, 1)
+    tirar(p, enemies)
+    p.update(0.05)
+    expect(p.count).toBe(0)
+  })
+
+  test('con Perforación total, la atraviesa', () => {
+    const { enemies, p, mods } = armar()
+    mods.pierceAll = 1
+    enemies.spawn(ENEMY_TYPE.TANK, 0, 1)
+    tirar(p, enemies)
+    p.update(0.05)
+    expect(p.count).toBe(1)
+  })
+
+  test('Impacto empuja al que recibe', () => {
+    const { enemies, p, mods } = armar()
+    mods.knockback = 1
+    const i = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
+    tirar(p, enemies)
+    p.update(0.05)
+    expect(enemies.posZ[i]).toBeCloseTo(2, 1e-6)
+  })
+
+  test('pero al boss no lo mueve', () => {
+    const { enemies, p, mods } = armar()
+    mods.knockback = 1
+    const i = enemies.spawn(ENEMY_TYPE.BOSS, 0, 1)
+    tirar(p, enemies)
+    p.update(0.05)
+    expect(enemies.posZ[i]).toBe(1)
+  })
+
+  test('Rebote reapunta la bala en vez de gastarla', () => {
+    const { enemies, p, mods } = armar()
+    mods.ricochet = 1
+    mods.ricochetKeep = 0.5
+
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
+    enemies.spawn(ENEMY_TYPE.NORMAL, 4, 1)
+
+    // Sin penetración: el rebote tiene que entrar justo cuando la bala moriría.
+    tirar(p, enemies, { ...PISTOLA, pierce: 0 })
+    const inicial = p.damage[0]
+
+    p.update(0.05)
+
+    expect(p.count).toBe(1)
+    expect(p.velX[0]).toBeGreaterThan(0)
+    expect(p.damage[0]).toBeCloseTo(inicial * 0.5, 1e-6)
+    expect(p.bounces[0]).toBe(0)
+  })
+
+  test('sin nadie a quien saltar, la bala muere igual', () => {
+    const { enemies, p, mods } = armar()
+    mods.ricochet = 1
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
+    tirar(p, enemies, { ...PISTOLA, pierce: 0 })
+    p.update(0.05)
+    expect(p.count).toBe(0)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('SkillSystem', () => {
+  function armar(projectiles = null) {
+    const enemies = new EnemyManager(escena)
+    const player = { position: { x: 0, y: 0, z: 0 } }
+    const mods = createWeaponMods()
+    const s = new SkillSystem(player, enemies, new Progression(), escena, projectiles, mods)
+    return { s, enemies, mods }
+  }
+
+  test('una habilidad de arma se traduce a modificadores', () => {
+    const { s, mods } = armar()
+    const def = SKILL_DEFS[SKILL.SMG_RAMP]
+
+    s.grant('SMG_RAMP')
+    expect(mods.ramp).toBe(def.levels[0].mods.ramp)
+
+    s.grant('SMG_RAMP')
+    expect(mods.ramp).toBe(def.levels[1].mods.ramp)
+
+    s.reset()
+    expect(mods.ramp).toBe(0)
+  })
+
+  test('las que no son de arma no tocan los modificadores', () => {
+    const { s, mods } = armar()
+    s.grant('ORBIT')
+    s.grant('STRIKE')
+    expect(mods).toEqual(createWeaponMods())
+  })
+
+  test('la onda expansiva empuja a la horda y no al boss', () => {
+    const { s, enemies } = armar()
+    const lvl = SKILL_DEFS[SKILL.PULSE].levels[0]
+    const drone = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
+    const boss = enemies.spawn(ENEMY_TYPE.BOSS, 0, 2)
+
+    s._pulse(lvl)
+
+    expect(enemies.posZ[drone]).toBeCloseTo(1 + lvl.push, 1e-6)
+    expect(enemies.posZ[boss]).toBe(2)
+  })
+
+  test('el dron dispara por el mismo pool que el arma', () => {
+    const disparos = []
+    const { s, enemies } = armar({
+      fire: (x, z, dx, dz, def, mult) => {
+        disparos.push({ def, mult })
+        return true
+      },
+    })
+    s.grant('DRONE')
+    enemies.spawn(ENEMY_TYPE.NORMAL, 3, 0)
+
+    s.update(0.016, 0)
+
+    expect(disparos.length).toBeGreaterThan(0)
+    expect(disparos[0].def.damage).toBe(SKILL_DEFS[SKILL.DRONE].levels[0].damage)
   })
 })
 

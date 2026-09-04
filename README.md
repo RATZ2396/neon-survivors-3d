@@ -31,14 +31,25 @@ Son dos progresiones distintas y no se mezclan:
 
 | | Arma base | Habilidades |
 |---|---|---|
-| Cuáles | pistola · escopeta · metralleta | escudo orbital · rayo |
+| Cuáles | pistola · escopeta · metralleta | 4 de base + 3 propias del arma |
 | Cuándo se elige | **antes** de la partida, en la pantalla de inicio | **durante** la partida, al subir de nivel |
-| Cuántas por partida | una sola, no cambia | hasta 4 distintas — hoy la tabla tiene 2 —, subibles a nivel 5 |
+| Cuántas por partida | una sola, no cambia | 7 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
 | Cómo se mejoran | **fuera** de la partida, en el taller, con la moneda ganada | **dentro** de la partida, con la XP de las gemas |
 | Se pierden al morir | no, son permanentes | sí, se empieza de cero |
 | Dónde se editan | `config/WeaponDefs.js` y `config/MetaDefs.js` | `config/SkillDefs.js` |
 
 El arma define **cómo se juega toda la partida**; las habilidades definen **en qué se convirtió esta partida**.
+
+### Un personaje = su arma, para siempre
+
+No hay arsenal: el arma elegida es la única de la partida. La profundidad sale de las habilidades, y por eso hay **dos familias**:
+
+- **Base compartida (4).** Las ve cualquier personaje: escudo orbital, rayo, onda expansiva y dron.
+- **Propias del arma (3 por arma).** Solo aparecen en el menú de nivel si estás jugando con esa arma. La diferencia en la tabla es una sola clave: `weapon: 'SHOTGUN'`.
+
+Con 7 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
+
+Las propias del arma no hacen daño por su cuenta — cambian **qué balas salen**. Viven en `kind: WEAPON` y publican modificadores en `combat/WeaponMods.js`, un objeto que escribe `SkillSystem` y leen `WeaponSystem` (qué se dispara) y `ProjectileManager` (qué hace cada bala al pegar). Misma regla de siempre: `WEAPON_DEFS` no se muta nunca.
 
 ### Taller y perfil
 
@@ -58,10 +69,32 @@ Botón **Borrar perfil** en el taller para empezar de cero.
 
 Tecla **L** durante el juego. Es una herramienta de diseño, no parte del juego: lista las habilidades, permite subirles y bajarles el nivel en vivo, traer 40 enemigos de prueba y limpiar la arena — para poder decidir qué queda y qué se saca sin jugar veinte minutos ni tocar código. No pausa la partida a propósito: la mitad de lo que hay que evaluar de una habilidad es cómo se ve mientras el juego corre.
 
+El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas: poder comparar es el punto de la herramienta. El filtro por arma es una regla del juego y vive en `UpgradeDefs`, que es donde corresponde.
+
+**Base — las ve cualquier personaje**
+
 | Habilidad | Qué es | nv 1 | nv 5 |
 |---|---|---|---|
 | **Escudo orbital** | orbes girando, daño por contacto | 2 orbes · 20 dps c/u · radio 2.0 | 5 orbes · 58 dps c/u · radio 2.6 |
 | **Rayo** | golpe puntual sobre el más cercano | 45 cada 3.0s · radio 2.6 (15 dps) | 140 cada 1.8s · radio 3.5 (78 dps) |
+| **Onda expansiva** | daña y **empuja** lo que te rodea | 30 cada 3.2s · radio 4.0 · empuje 1.6 | 105 cada 2.0s · radio 6.2 · empuje 3.0 |
+| **Dron** | acompañantes que disparan solos | 1 × 10 cada 0.9s · alcance 12 | 3 × 20 cada 0.6s · alcance 16 |
+
+**Propias del arma — solo con ella**
+
+| Arma | Habilidad | Qué hace |
+|---|---|---|
+| Pistola | **Rebote** | agotada la penetración, la bala salta al siguiente (hasta 3 saltos) |
+| Pistola | **Cañón trasero** | dispara la misma andanada hacia atrás |
+| Pistola | **Perforación total** | atraviesa a los que frenan balas — tanque y boss |
+| Escopeta | **Impacto** | cada perdigón empuja; un disparo de cerca abre un pasillo |
+| Escopeta | **Abanico trasero** | el mismo abanico, también hacia atrás |
+| Escopeta | **Doble cañón** | ráfaga de 2-3 andanadas y después recarga más lenta |
+| Metralleta | **Calentamiento** | disparando seguido, la recarga baja hasta -42% |
+| Metralleta | **Doble línea** | balas paralelas al costado, no abanico |
+| Metralleta | **Bala explosiva** | cada 6-12 balas, una estalla al impactar |
+
+El **empuje** de la onda expansiva y de Impacto no mueve a los `heavy` (el boss), a propósito: si el boss retrocediera con cada golpe la pelea se ganaría quedándose quieto.
 
 ## Entry point
 
@@ -112,12 +145,13 @@ src/
 ├── config/BossDefs.js            comportamiento del boss
 ├── config/WeaponDefs.js          las 3 armas base
 ├── config/SkillDefs.js           las habilidades, con sus 5 niveles
+├── combat/WeaponMods.js          lo que las habilidades de personaje le cambian al arma
 ├── config/UpgradeDefs.js         mazo de mejoras del menú de nivel (de partida)
 ├── config/MetaDefs.js            árboles de mejora permanente, uno por arma
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 ├── config/VfxDefs.js             las 7 explosiones de partículas
 ├── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
-└── tests/                        `npm test` — 91 tests, sin dependencias
+└── tests/                        `npm test` — 127 tests, sin dependencias
 ```
 
 `HUD.js` y `PerformanceMonitor.js` están separados a propósito y no comparten datos: uno es información del **juego**, el otro es **diagnóstico**. En la versión anterior estaban mezclados en overlays superpuestos y no se distinguía cuál era cuál.
@@ -412,9 +446,9 @@ No se escribió un `ObjectPool` genérico como sugería el GDD. Cada sistema tie
 npm test
 ```
 
-**91 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
+**127 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
 
-Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
+Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · **filtro de habilidades por arma** · **modificadores del arma** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
 
 Tres merecen mención porque **defienden bugs que ya ocurrieron**:
 

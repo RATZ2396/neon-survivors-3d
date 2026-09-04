@@ -1,4 +1,5 @@
 import { SKILL_DEFS, SKILL_KIND } from '../config/SkillDefs.js'
+import { WEAPON_DEFS, WEAPON } from '../config/WeaponDefs.js'
 
 /**
  * SkillLab — panel de desarrollo para mirar las habilidades y decidir.
@@ -10,6 +11,11 @@ import { SKILL_DEFS, SKILL_KIND } from '../config/SkillDefs.js'
  *
  * A propósito NO pausa la partida: la mitad de lo que hay que evaluar de una
  * habilidad es cómo se ve y cómo se siente mientras el juego corre.
+ *
+ * Y a propósito TAMPOCO respeta el filtro por arma: en el juego, "Rebote"
+ * solo aparece con la pistola, pero acá se puede equipar con cualquiera.
+ * Poder comparar es el punto de la herramienta; el filtro es una regla del
+ * juego y vive en UpgradeDefs, que es donde corresponde.
  *
  * Se abre y cierra con la tecla L, y solo existe en desarrollo.
  */
@@ -53,7 +59,7 @@ export class SkillLab {
         <div class="lrow" data-i="${i}" style="--l-color:${color}">
           <div class="lhead">
             <span class="lname">${def.name}</span>
-            <span class="lkind">${this._kindLabel(def.kind)}</span>
+            <span class="lkind">${this._duenio(def)}${this._kindLabel(def.kind)}</span>
           </div>
           <p class="ldesc">${def.desc}</p>
           <div class="lctl">
@@ -91,8 +97,17 @@ export class SkillLab {
     })
   }
 
+  /** De quién es la habilidad: base compartida, o de un arma. */
+  _duenio(def) {
+    if (!def.weapon) return ''
+    return WEAPON_DEFS[WEAPON[def.weapon]].name + ' · '
+  }
+
   _kindLabel(kind) {
     if (kind === SKILL_KIND.ORBIT) return 'orbita · daño por contacto'
+    if (kind === SKILL_KIND.PULSE) return 'onda · daña y empuja'
+    if (kind === SKILL_KIND.DRONE) return 'acompañantes · disparan solos'
+    if (kind === SKILL_KIND.WEAPON) return 'cambia cómo dispara tu arma'
     return 'golpe puntual · cada N segundos'
   }
 
@@ -164,6 +179,20 @@ export class SkillLab {
   _describe(def, l) {
     if (def.kind === SKILL_KIND.ORBIT) {
       return `${l.count} orbes · ${l.dps} dps c/u · radio ${l.radius}`
+    }
+    if (def.kind === SKILL_KIND.PULSE) {
+      return `${l.damage} cada ${l.interval}s · radio ${l.radius} · empuje ${l.push}`
+    }
+    if (def.kind === SKILL_KIND.DRONE) {
+      const dps = Math.round((l.count * l.damage) / l.interval)
+      return `${l.count} × ${l.damage} cada ${l.interval}s · alcance ${l.range} (${dps} dps)`
+    }
+    if (def.kind === SKILL_KIND.WEAPON) {
+      // Los modificadores no tienen una unidad común: se listan crudos, que
+      // es exactamente lo que hace falta para balancearlos.
+      return Object.entries(l.mods)
+        .map(([k, v]) => `${k} ${v}`)
+        .join(' · ')
     }
     return `${l.damage} de golpe cada ${l.interval}s · radio ${l.radius} (${Math.round(l.damage / l.interval)} dps)`
   }

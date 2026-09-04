@@ -13,6 +13,10 @@ import { SKILL_DEFS, SKILL } from './SkillDefs.js'
  * escribirlas a mano era la forma más segura de que algún día alguien agregue
  * una habilidad que nadie pueda conseguir nunca.
  *
+ * Y las que son PROPIAS DE UN ARMA se filtran solas por el campo `weapon` de
+ * su fila. Agregar una habilidad de escopeta es agregar una fila con
+ * `weapon: 'SHOTGUN'`: nada acá se entera.
+ *
  * Cada mejora tiene `available(ctx)` y `apply(ctx)`. Sí, son funciones dentro de
  * datos, y es a propósito: lo que hace cada mejora es genuinamente distinto, y
  * la alternativa honesta era un `switch` gigante en otro archivo que hay que
@@ -101,6 +105,10 @@ const SKILL_UPGRADES = SKILL_DEFS.map((def) => ({
   stacks: def.levels.length,
   weight: 4,
   available: (ctx) => {
+    // Propia de un arma: no existe para los demás personajes. Sin `def.weapon`
+    // es de la base compartida y la ve cualquiera.
+    if (def.weapon && def.weapon !== ctx.weapons?.def?.key) return false
+
     const lvl = ctx.skills.levelOf(SKILL[def.key])
     if (lvl >= def.levels.length) return false
     // Si todavía no la tenés, ocupa un espacio nuevo y hay un límite.

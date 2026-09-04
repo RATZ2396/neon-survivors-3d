@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config/GameConfig.js'
 import { ENEMY_DEFS } from '../config/EnemyDefs.js'
+import { createWeaponMods } from './WeaponMods.js'
 
 const _dummy = new THREE.Object3D()
 const _color = new THREE.Color()
@@ -18,11 +19,17 @@ const _color = new THREE.Color()
  * si entendés uno, entendés el otro.
  */
 export class ProjectileManager {
-  constructor(scene, enemies) {
+  /**
+   * @param {object} mods modificadores que las habilidades de personaje le
+   *                      hacen a las balas (ver WeaponMods.js). Se lee, no
+   *                      se escribe.
+   */
+  constructor(scene, enemies, mods = createWeaponMods()) {
     const max = CONFIG.COMBAT.MAX_PROJECTILES
     this.max = max
     this.count = 0
     this.enemies = enemies
+    this.mods = mods
     /**
      * Impactos acumulados en la partida. Es una estadística de solo lectura:
      * la publica para que otros sistemas (hoy el audio) puedan reaccionar sin
@@ -43,6 +50,8 @@ export class ProjectileManager {
     this.pierce = new Int16Array(max)
     this.explodeRadius = new Float32Array(max)
     this.explodeDamage = new Float32Array(max)
+    /** Saltos que le quedan a la bala. Tiene que ser POR BALA: se gasta. */
+    this.bounces = new Int16Array(max)
     /** Último enemigo golpeado, por id: evita que una bala que atraviesa le
      *  pegue dos veces al mismo mientras sigue solapada con él. */
     this.lastHitId = new Int32Array(max)
@@ -68,7 +77,7 @@ export class ProjectileManager {
    * mejoras que había en ese instante. Si se leyera al impactar, una bala en
    * vuelo cambiaría de daño al subir de nivel a mitad de camino.
    */
-  fire(x, z, dirX, dirZ, def, damageMult = 1) {
+  fire(x, z, dirX, dirZ, def, damageMult = 1, boomRadius = 0, boomDamage = 0) {
     if (this.count >= this.max) return false
 
     const i = this.count++
@@ -79,9 +88,13 @@ export class ProjectileManager {
     this.life[i] = def.lifetime
     this.damage[i] = def.damage * damageMult
     this.size[i] = def.size
-    this.pierce[i] = def.pierce || 0
-    this.explodeRadius[i] = def.explodeRadius || 0
-    this.explodeDamage[i] = (def.explodeDamage || 0) * damageMult
+    // La penetración y el rebote salen de los modificadores en el momento
+    // del disparo, igual que el daño: una bala en vuelo no cambia de reglas
+    // porque hayas subido de nivel a mitad de camino.
+    this.pierce[i] = (def.pierce || 0) + this.mods.pierceAdd
+    this.bounces[i] = this.mods.ricochet
+    this.explodeRadius[i] = boomRadius || def.explodeRadius || 0
+    this.explodeDamage[i] = (boomDamage || def.explodeDamage || 0) * damageMult
     this.lastHitId[i] = 0
 
     this.mesh.setColorAt(i, _color.setHex(def.color))
@@ -102,6 +115,7 @@ export class ProjectileManager {
       this.pierce[i] = this.pierce[last]
       this.explodeRadius[i] = this.explodeRadius[last]
       this.explodeDamage[i] = this.explodeDamage[last]
+      this.bounces[i] = this.bounces[last]
       this.lastHitId[i] = this.lastHitId[last]
 
       const c = this.mesh.instanceColor.array
@@ -155,6 +169,8 @@ export class ProjectileManager {
       this.hitX = x
       this.hitZ = z
 
+      if (this.mods.knockback > 0) this._knockback(hit, i)
+
       if (this.explodeRadius[i] > 0) {
         this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit)
         this._remove(i)
@@ -168,14 +184,89 @@ export class ProjectileManager {
       // importar cuánta penetración le quede; el resto solo le gasta una
       // carga. El tope de penetración es lo que impide que una bala barra
       // una fila entera y convierta la horda en un trámite.
-      if (ENEMY_DEFS[e.type[hit]].blocksShots) {
+      // `pierceAll` es la habilidad "Perforación total" de la pistola: apaga
+      // esta regla entera, que es exactamente lo que la hace valiosa.
+      if (ENEMY_DEFS[e.type[hit]].blocksShots && !this.mods.pierceAll) {
         this._remove(i)
         continue
       }
 
       if (this.pierce[i] > 0) this.pierce[i]--
+      // El rebote entra DESPUÉS de la penetración, no en vez de ella: se
+      // gasta cuando la bala ya no puede seguir de largo.
+      else if (this.bounces[i] > 0 && this._ricochet(i, x, z, hit)) this.bounces[i]--
       else this._remove(i)
     }
+  }
+
+  /**
+   * Empuje del impacto. Escribe la posición directo, como la separación de
+   * la horda: el empuje no es daño y no tiene por qué esperar a que se
+   * resuelva la cola. A los `heavy` no los mueve nada.
+   */
+  _knockback(hit, i) {
+    const e = this.enemies
+    if (e.heavy[hit]) return
+
+    const vx = this.velX[i]
+    const vz = this.velZ[i]
+    const len = Math.sqrt(vx * vx + vz * vz)
+    if (len < 0.0001) return
+
+    const k = this.mods.knockback
+    const edge = CONFIG.WORLD.ARENA_SIZE / 2 - e.radius[hit]
+
+    let nx = e.posX[hit] + (vx / len) * k
+    let nz = e.posZ[hit] + (vz / len) * k
+    if (nx > edge) nx = edge
+    else if (nx < -edge) nx = -edge
+    if (nz > edge) nz = edge
+    else if (nz < -edge) nz = -edge
+    e.posX[hit] = nx
+    e.posZ[hit] = nz
+  }
+
+  /**
+   * Reapunta la bala al enemigo más cercano que no sea el que acaba de
+   * recibir. Conserva la velocidad y pierde una fracción del daño.
+   *
+   * @returns {boolean} false si no había a dónde saltar; ahí la bala muere
+   *                    normalmente y no se gasta el rebote.
+   */
+  _ricochet(i, x, z, hit) {
+    const e = this.enemies
+    const skip = e.id[hit]
+    const rangeSq = CONFIG.COMBAT.RICOCHET_RANGE * CONFIG.COMBAT.RICOCHET_RANGE
+
+    let best = -1
+    let bestSq = rangeSq
+    for (let j = 0; j < e.count; j++) {
+      if (e.id[j] === skip) continue
+      const dx = e.posX[j] - x
+      const dz = e.posZ[j] - z
+      const dSq = dx * dx + dz * dz
+      if (dSq < bestSq) {
+        bestSq = dSq
+        best = j
+      }
+    }
+    if (best === -1) return false
+
+    const dist = Math.sqrt(bestSq)
+    if (dist < 0.0001) return false
+
+    const vx = this.velX[i]
+    const vz = this.velZ[i]
+    const speed = Math.sqrt(vx * vx + vz * vz)
+    this.velX[i] = ((e.posX[best] - x) / dist) * speed
+    this.velZ[i] = ((e.posZ[best] - z) / dist) * speed
+    this.damage[i] *= this.mods.ricochetKeep
+
+    // Una bala a punto de expirar no llegaría ni al de al lado: se le da lo
+    // justo para cubrir el salto, no una vida nueva.
+    const necesita = dist / speed + 0.05
+    if (this.life[i] < necesita) this.life[i] = necesita
+    return true
   }
 
   /**
