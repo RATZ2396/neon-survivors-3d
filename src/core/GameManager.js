@@ -77,6 +77,12 @@ export class GameManager {
     this._pendingLevels = 0
     /** Moneda que dejó la última partida. La muestra la pantalla de muerte. */
     this._lastReward = 0
+    /**
+     * ¿Hay una partida sin cobrar? La ponen `startRun` y la baja `_settleRun`.
+     * Es lo que hace que cobrar sea idempotente: se puede llamar de más, nunca
+     * paga de más.
+     */
+    this._runOpen = false
     /** Draw calls del frame anterior; el panel corre antes de dibujar. */
     this._lastCalls = 0
     /**
@@ -258,26 +264,47 @@ export class GameManager {
   }
 
   /**
-   * Cierra la partida y cobra la recompensa.
+   * Cobra la partida en curso. UNA sola vez, la llamen las veces que la llamen.
    *
-   * Se llama UNA vez, en la transición: la rama de GAME_OVER del loop corre
-   * todos los frames, y acreditar ahí multiplicaría la moneda por los frames
-   * que tarde el jugador en apretar una tecla.
+   * Hay dos maneras de terminar una partida —morirse y abandonar— y las dos
+   * pagan lo mismo, porque el tiempo y las bajas ya ocurrieron igual. Antes
+   * solo pagaba la muerte, y eso creaba un incentivo absurdo: para cobrar una
+   * buena partida había que dejarse matar a propósito.
+   *
+   * La idempotencia no es un lujo. La rama de GAME_OVER del loop corre todos
+   * los frames, así que un cobro sin bandera multiplicaría la moneda por los
+   * frames que el jugador tarde en apretar una tecla; y desde GAME_OVER se
+   * puede salir al taller, que vuelve a pasar por acá.
+   *
+   * Va SIEMPRE antes de `_clearRun()`, que es quien borra el tiempo, las bajas
+   * y los bosses con los que se calcula el pago.
+   *
+   * @returns {number} lo cobrado, o 0 si no había nada que cobrar.
    */
-  _endRun() {
-    this.state = GAME_STATE.GAME_OVER
-    // Los números dejan de actualizarse al salir de PLAYING: si no se limpian,
-    // quedan congelados debajo de la pantalla de muerte.
-    this.floaters.clear()
-    this._lastReward = this.profile.finishRun(
+  _settleRun() {
+    if (!this._runOpen) return 0
+    this._runOpen = false
+    return this.profile.finishRun(
       this.waves.elapsed,
       this.enemies.killCount,
       this.boss.defeated,
     )
   }
 
-  /** Vuelve a la pantalla de elección de arma. */
+  /** Cierra la partida por muerte del jugador. */
+  _endRun() {
+    this.state = GAME_STATE.GAME_OVER
+    // Los números dejan de actualizarse al salir de PLAYING: si no se limpian,
+    // quedan congelados debajo de la pantalla de muerte.
+    this.floaters.clear()
+    this._lastReward = this._settleRun()
+  }
+
+  /** Vuelve a la pantalla de elección de arma, cobrando lo que se haya jugado. */
   toMenu() {
+    // Abandonar paga lo trabajado. Si se viene del GAME_OVER esto no hace nada,
+    // porque morir ya cobró. Antes de _clearRun, que borra los números del pago.
+    this._settleRun()
     this.pauseMenu.hide()
     this._clearRun()
     this.hud.hideGameOver()
@@ -293,6 +320,7 @@ export class GameManager {
    */
   startRun(weaponKey) {
     this._clearRun()
+    this._runOpen = true
     this.weapons.equip(weaponKey)
     // El arma de la partida en curso se registra ACÁ y no solo al elegirla en el
     // menú: así "R para reintentar" repite lo que estabas jugando, venga la

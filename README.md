@@ -312,6 +312,8 @@ También apareció acá algo que no era del boss: al reiniciar, la cámara **int
 
 **Perfil corrupto no tumba el juego.** `localStorage` devuelve texto que escribió una versión anterior o alguien con la consola abierta, así que se trata como dato sucio. Probado con: JSON inválido, `null`, un arreglo, moneda negativa, nivel 99 en una rama de máximo 5, una rama que no existe, un arma inventada, sin `localStorage`, y un storage que tira excepción al leer **y al escribir**. Los nueve casos arrancan un perfil válido; ninguno lanza.
 
+**Abandonar también paga.** Durante un tiempo solo cobraba la muerte: `toMenu()` no pasaba por el cobro. Eso creaba un incentivo absurdo —para cobrar una buena partida había que dejarse matar a propósito— y contradecía al propio botón, que dice "abandonar y volver al taller", que es donde se gasta. Ahora las dos salidas pasan por `_settleRun()`, que **cobra una sola vez** gracias a una bandera: la rama de GAME_OVER corre todos los frames, así que sin ella la moneda se multiplicaría por los frames que tardes en apretar una tecla, y desde GAME_OVER se puede volver al taller, que pasa otra vez por ahí. Medido en el navegador: abandonar tras 15.5 s y 11 bajas paga 25, que es la fórmula exacta; morir paga una vez y volver al taller después no vuelve a pagar; quedarse quieto cinco segundos en la pantalla de muerte no suma nada.
+
 **Un bug que la recompensa hizo visible:** `EnemyManager.clear()` no reiniciaba `killCount`, así que las bajas se arrastraban de una partida a la siguiente. Mientras el número solo se mostraba en el HUD era un detalle feo; desde que la recompensa se calcula con él, reintentar sin cerrar la pestaña **pagaba de más cada vez**. Dos partidas idénticas ahora pagan idéntico.
 
 ### Verificación de la Parte H
