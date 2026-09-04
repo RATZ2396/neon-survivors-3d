@@ -31,9 +31,9 @@ Son dos progresiones distintas y no se mezclan:
 
 | | Arma base | Habilidades |
 |---|---|---|
-| Cuáles | pistola · escopeta · metralleta | escudo orbital · campo de fuerza · rayo |
+| Cuáles | pistola · escopeta · metralleta | escudo orbital · rayo |
 | Cuándo se elige | **antes** de la partida, en la pantalla de inicio | **durante** la partida, al subir de nivel |
-| Cuántas por partida | una sola, no cambia | hasta 4, subibles a nivel 5 |
+| Cuántas por partida | una sola, no cambia | hasta 4 distintas — hoy la tabla tiene 2 —, subibles a nivel 5 |
 | Cómo se mejoran | **fuera** de la partida, en el taller, con la moneda ganada | **dentro** de la partida, con la XP de las gemas |
 | Se pierden al morir | no, son permanentes | sí, se empieza de cero |
 | Dónde se editan | `config/WeaponDefs.js` y `config/MetaDefs.js` | `config/SkillDefs.js` |
@@ -61,7 +61,6 @@ Tecla **L** durante el juego. Es una herramienta de diseño, no parte del juego:
 | Habilidad | Qué es | nv 1 | nv 5 |
 |---|---|---|---|
 | **Escudo orbital** | orbes girando, daño por contacto | 2 orbes · 20 dps c/u · radio 2.0 | 5 orbes · 58 dps c/u · radio 2.6 |
-| **Campo de fuerza** | área fija pegada al jugador | 10 dps · radio 2.5 | 32 dps · radio 4.2 |
 | **Rayo** | golpe puntual sobre el más cercano | 45 cada 3.0s · radio 2.6 (15 dps) | 140 cada 1.8s · radio 3.5 (78 dps) |
 
 ## Entry point
@@ -255,7 +254,7 @@ Las mejoras de arma y de skill **no están escritas a mano**: se derivan de `WEA
 |---|---|
 | La XP no se cobra sola | el enemigo muere a 12 u y la gema **queda en el piso**; se recoge al acercarse |
 | Efecto de las mejoras | daño ×1 → **1.30** (2 tomas) · cadencia ×1 → **0.81** · velocidad **+8%** · vida **100 → 125** · imán **2.6 → 4.16** |
-| Daño de las skills | Aura **240 dps** sobre 24 blancos (10 dps × 24, exacto) · Rayo **213 dps** · Escudo orbital **74 dps** |
+| Daño de las skills | Aura **240 dps** sobre 24 blancos (10 dps × 24, exacto) · Rayo **213 dps** · Escudo orbital **74 dps**. El aura se sacó del juego después de esta medición; el número queda porque la medición pasó. |
 | Varios niveles de golpe | se encolan y se eligen de a uno; el menú reabre solo |
 | Reinicio | nivel, mejoras, armas, skills, gemas y estadísticas vuelven a cero |
 | `WEAPON_DEFS` tras una partida con mejoras | **intacta** — los multiplicadores viven en `Progression`, la tabla nunca se muta |

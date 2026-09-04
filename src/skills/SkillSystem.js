@@ -9,7 +9,7 @@ const MAX_ORBS = 8
 /**
  * SkillSystem — todas las habilidades, un solo resolutor.
  *
- * Igual que WeaponSystem: tres `kind` y ningún archivo por skill. El GDD v1
+ * Igual que WeaponSystem: dos `kind` y ningún archivo por skill. El GDD v1
  * tenía OrbitalShield, ThunderStrike, WarCrySkill, TurretSkill y GrenadeSkill
  * como clases separadas repitiendo la misma búsqueda de enemigos en un radio.
  *
@@ -38,21 +38,6 @@ export class SkillSystem {
     this.orbMesh.count = 0
     scene.add(this.orbMesh)
 
-    // Disco del aura
-    const auraGeo = new THREE.RingGeometry(0.92, 1, 40)
-    const auraMat = new THREE.MeshBasicMaterial({
-      color: SKILL_DEFS[SKILL.AURA].color,
-      transparent: true,
-      opacity: 0.45,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    })
-    this.auraMesh = new THREE.Mesh(auraGeo, auraMat)
-    this.auraMesh.rotation.x = -Math.PI / 2
-    this.auraMesh.position.y = 0.06
-    this.auraMesh.visible = false
-    scene.add(this.auraMesh)
-
     // Columna del rayo: un solo mesh reutilizado, se muestra un instante
     const boltGeo = new THREE.CylinderGeometry(1, 1, 9, 14, 1, true)
     const boltMat = new THREE.MeshBasicMaterial({
@@ -71,7 +56,6 @@ export class SkillSystem {
   reset() {
     this.owned.length = 0
     this.orbMesh.count = 0
-    this.auraMesh.visible = false
     this.boltMesh.visible = false
     this.boltTimer = 0
   }
@@ -103,7 +87,6 @@ export class SkillSystem {
 
   update(delta, elapsed) {
     let orbCount = 0
-    let auraActive = false
 
     for (let s = 0; s < this.owned.length; s++) {
       const entry = this.owned[s]
@@ -112,9 +95,6 @@ export class SkillSystem {
 
       if (def.kind === SKILL_KIND.ORBIT) {
         orbCount = this._updateOrbit(delta, elapsed, lvl)
-      } else if (def.kind === SKILL_KIND.AURA) {
-        this._updateAura(delta, lvl)
-        auraActive = true
       } else if (def.kind === SKILL_KIND.STRIKE) {
         entry.timer -= delta
         if (entry.timer <= 0) {
@@ -126,7 +106,6 @@ export class SkillSystem {
 
     this.orbMesh.count = orbCount
     if (orbCount > 0) this.orbMesh.instanceMatrix.needsUpdate = true
-    this.auraMesh.visible = auraActive
     this._updateBolt(delta)
   }
 
@@ -161,24 +140,6 @@ export class SkillSystem {
     }
 
     return lvl.count
-  }
-
-  _updateAura(delta, lvl) {
-    const e = this.enemies
-    const px = this.player.position.x
-    const pz = this.player.position.z
-    const rSq = lvl.radius * lvl.radius
-    const dmg = lvl.dps * delta * this.progression.stats.damageMult
-
-    for (let i = 0; i < e.count; i++) {
-      const dx = e.posX[i] - px
-      const dz = e.posZ[i] - pz
-      if (dx * dx + dz * dz <= rSq) e.queueDamage(i, dmg)
-    }
-
-    this.auraMesh.position.x = px
-    this.auraMesh.position.z = pz
-    this.auraMesh.scale.setScalar(lvl.radius)
   }
 
   _strike(lvl) {

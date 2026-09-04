@@ -1,14 +1,18 @@
 /**
  * SkillDefs — habilidades pasivas, en una tabla.
  *
- * Mismo criterio que WeaponDefs: no hay una clase por skill. Las tres se
+ * Mismo criterio que WeaponDefs: no hay una clase por skill. Las dos se
  * reducen a "hacer daño en un área", y lo que cambia es DÓNDE está esa área:
  *
  *   ORBIT  — orbes girando alrededor del jugador (el escudo orbital del GDD v1)
- *   AURA   — un círculo fijo pegado al jugador
  *   STRIKE — un golpe puntual cada N segundos sobre un enemigo (el rayo del v1)
  *
- * ORBIT y AURA hacen daño por segundo mientras tocan; STRIKE hace daño de golpe.
+ * ORBIT hace daño por segundo mientras toca; STRIKE hace daño de golpe.
+ *
+ * Hubo un tercer kind, AURA — "Campo de fuerza": un círculo fijo pegado al
+ * jugador que dañaba todo lo que tuviera cerca. Se sacó por decisión de
+ * diseño, no porque fallara. La base compartida se rearma alrededor de los
+ * orbes y el resto pasa a ser propio de cada personaje (ver PENDIENTE.md).
  *
  * `levels` es explícito nivel por nivel, no una fórmula base+incremento. Es más
  * texto pero se lee de un vistazo qué pasa en cada nivel, y balancear no obliga
@@ -17,7 +21,6 @@
 
 export const SKILL_KIND = {
   ORBIT: 'ORBIT',
-  AURA: 'AURA',
   STRIKE: 'STRIKE',
 }
 
@@ -36,20 +39,6 @@ export const SKILL_DEFS = [
       { count: 3, dps: 34, radius: 2.3, spin: 0.42, size: 0.34 },
       { count: 4, dps: 44, radius: 2.4, spin: 0.46, size: 0.34 },
       { count: 5, dps: 58, radius: 2.6, spin: 0.5, size: 0.38 },
-    ],
-  },
-  {
-    key: 'AURA',
-    name: 'Campo de fuerza',
-    desc: 'Daña constantemente a todo lo que esté cerca tuyo.',
-    kind: SKILL_KIND.AURA,
-    color: 0x8b5cf6,
-    levels: [
-      { dps: 10, radius: 2.5 },
-      { dps: 14, radius: 2.8 },
-      { dps: 19, radius: 3.2 },
-      { dps: 25, radius: 3.6 },
-      { dps: 32, radius: 4.2 },
     ],
   },
   {

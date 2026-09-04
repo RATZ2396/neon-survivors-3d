@@ -93,7 +93,6 @@ export class SkillLab {
 
   _kindLabel(kind) {
     if (kind === SKILL_KIND.ORBIT) return 'orbita · daño por contacto'
-    if (kind === SKILL_KIND.AURA) return 'área fija · daño continuo'
     return 'golpe puntual · cada N segundos'
   }
 
@@ -165,9 +164,6 @@ export class SkillLab {
   _describe(def, l) {
     if (def.kind === SKILL_KIND.ORBIT) {
       return `${l.count} orbes · ${l.dps} dps c/u · radio ${l.radius}`
-    }
-    if (def.kind === SKILL_KIND.AURA) {
-      return `${l.dps} dps · radio ${l.radius}`
     }
     return `${l.damage} de golpe cada ${l.interval}s · radio ${l.radius} (${Math.round(l.damage / l.interval)} dps)`
   }

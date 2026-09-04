@@ -12,7 +12,8 @@ recolección y los enemigos — nunca de sumar armas.
 
 ## 1. Habilidades
 
-**Sacar `Campo de fuerza`.**
+**~~Sacar `Campo de fuerza`~~ — hecho.** Ya no está en `SkillDefs.js`, y con
+ella se fue el `kind` `AURA` entero: `SkillSystem` pasó de tres ramas a dos.
 
 Quedan dos capas:
 
@@ -26,9 +27,9 @@ Además, unificar arma y habilidad en un solo sistema: `Rayo`, `Escudo orbital`
 y compañía ya tienen daño, enfriamiento y alcance — son armas. Esa división
 hoy solo agrega código.
 
-**Ojo con la cuenta:** hoy hay 3 habilidades en total. Sacando `Campo de
-fuerza` quedan 2, y el mazo de subida de nivel se queda flaco hasta que
-existan las nuevas.
+**Ojo con la cuenta:** quedan **2 habilidades** (escudo orbital y rayo). El
+mazo de subida de nivel sigue ofreciendo 4 opciones porque hay 6 mejoras de
+estadística, pero está flaco de habilidades hasta que existan las nuevas.
 
 ## 2. Recolección
 
