@@ -425,6 +425,41 @@ Tres merecen mención porque **defienden bugs que ya ocurrieron**:
 
 Los tests corren en Node, sin navegador y sin WebGL. Eso salió gratis, y no por suerte: los datos y el dibujo estaban separados desde el principio, así que las clases que deciden el resultado de una partida no necesitan una pantalla para funcionar.
 
+## Publicar
+
+```bash
+npm run build
+```
+
+Sale un `dist/` estático: un `index.html` y un solo `.js` con hash en el
+nombre. No hay backend, no hay variables de entorno, no hay nada que configurar
+en el servidor — cualquier hosting de archivos lo sirve.
+
+`vercel.json` fija el framework, el comando y la carpeta de salida en lugar de
+confiar en la autodetección, y le pone caché inmutable de un año a `/assets/*`.
+Eso es seguro porque Vite le mete un hash al nombre: si el archivo cambia,
+cambia el nombre, así que nunca se sirve una versión vieja desde caché.
+
+| Medida | Valor |
+|---|---|
+| Bundle | 667 KB · **179 KB comprimido** |
+| De eso, three.js | ~600 KB — el juego propio es chico |
+| Peticiones para arrancar | **2** (html + js), ninguna externa |
+| Fuentes, CDNs, analytics | ninguno |
+
+**El panel de diagnóstico no viaja al build.** Estaba atado a un
+`SHOW_DEBUG_PANEL: true` escrito a mano y se publicaba encendido, tapando la
+esquina de la pantalla con números que a un jugador no le dicen nada. Ahora se
+ata a `import.meta.env?.DEV`. El `?.` no es decorativo: los tests corren en
+Node, donde `import.meta.env` no existe.
+
+El build de producción se verifica aparte del de desarrollo, porque son cosas
+distintas y el minificado rompe cosas que el otro no:
+
+```bash
+npm run build && npm run preview
+```
+
 ## Decisiones abiertas
 
 Ya no queda ninguna decisión abierta de `GDD_v2.md` §6. Las dos que había se cerraron:
