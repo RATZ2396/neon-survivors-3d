@@ -17,6 +17,12 @@ export class Progression {
   reset() {
     this.level = 1
     this.xp = 0
+    /**
+     * Moneda juntada del piso en esta partida. Vive acá y no en el
+     * GameManager porque es estado de partida, como el nivel: se reinicia
+     * con reset() y lo lee el HUD sin tener que conocer al que la cobra.
+     */
+    this.coins = 0
     this.xpToNext = this._curve(1)
     this.totalXp = 0
     /** Mejoras tomadas, por clave: clave -> cuántas veces. */

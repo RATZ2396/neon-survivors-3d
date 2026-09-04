@@ -70,6 +70,16 @@ export class Player {
     this._updateHitFlash()
   }
 
+  /**
+   * Cura, sin pasarse del máximo. Existe como método y no como dos líneas
+   * sueltas porque ahora curan dos cosas distintas —el botiquín del menú de
+   * nivel y el corazón del mapa— y el tope tiene que valer para las dos.
+   */
+  heal(amount) {
+    if (this.isDead) return
+    this.hp = Math.min(this.maxHp, this.hp + amount)
+  }
+
   takeDamage(amount) {
     if (this.isDead || this.invulnTimer > 0) return
 

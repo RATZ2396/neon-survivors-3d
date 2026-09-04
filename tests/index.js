@@ -14,6 +14,8 @@ import { SKILL_DEFS, SKILL, SKILL_KIND } from '../src/config/SkillDefs.js'
 import { SkillSystem } from '../src/skills/SkillSystem.js'
 import { ProjectileManager } from '../src/combat/ProjectileManager.js'
 import { createWeaponMods, resetWeaponMods } from '../src/combat/WeaponMods.js'
+import { PickupManager } from '../src/progression/PickupManager.js'
+import { PICKUP_KIND, PICKUP_DEFS } from '../src/config/PickupDefs.js'
 import { SoundManager } from '../src/audio/SoundManager.js'
 import { SOUND_DEFS } from '../src/config/SoundDefs.js'
 import { ParticleSystem } from '../src/vfx/ParticleSystem.js'
@@ -195,18 +197,25 @@ describe('PlayerProfile', () => {
     p.wipe()
   })
 
-  test('la recompensa premia tiempo, bajas y bosses, con piso', () => {
-    const { REWARD_PER_SECOND, REWARD_PER_KILL, REWARD_PER_BOSS, REWARD_MIN } = CONFIG.META
-    expect(PlayerProfile.rewardFor(0, 0, 0)).toBe(REWARD_MIN)
-    expect(PlayerProfile.rewardFor(100, 0, 0)).toBe(Math.round(100 * REWARD_PER_SECOND))
-    expect(PlayerProfile.rewardFor(0, 100, 0)).toBe(Math.round(100 * REWARD_PER_KILL))
-    expect(PlayerProfile.rewardFor(0, 0, 2)).toBe(Math.round(2 * REWARD_PER_BOSS))
+  test('la recompensa premia tiempo y moneda juntada, con piso', () => {
+    const { REWARD_PER_SECOND, REWARD_MIN } = CONFIG.META
+    expect(PlayerProfile.rewardFor(0, 0)).toBe(REWARD_MIN)
+    expect(PlayerProfile.rewardFor(100, 0)).toBe(Math.round(100 * REWARD_PER_SECOND))
+    // La moneda entra tal cual: ya la juntaste del piso, no se vuelve a escalar.
+    expect(PlayerProfile.rewardFor(0, 300)).toBe(300)
+  })
+
+  test('matar sin juntar no paga', () => {
+    // Es la diferencia entera del cambio: antes se cobraba por baja al
+    // terminar, ahora la baja deja una moneda en el piso y hay que ir.
+    const solo = CONFIG.META.REWARD_PER_SECOND * 100
+    expect(PlayerProfile.rewardFor(100, 0)).toBe(Math.round(solo))
   })
 
   test('terminar una partida acredita y persiste', () => {
     const store = almacenFalso()
     const p = new PlayerProfile(store)
-    const premio = p.finishRun(60, 30, 1)
+    const premio = p.finishRun(60, 30)
     expect(p.currency).toBe(premio)
     expect(p.runs).toBe(1)
     expect(p.bestSeconds).toBe(60)
@@ -215,8 +224,8 @@ describe('PlayerProfile', () => {
 
   test('el mejor tiempo solo sube', () => {
     const p = new PlayerProfile(almacenFalso())
-    p.finishRun(120, 0, 0)
-    p.finishRun(30, 0, 0)
+    p.finishRun(120, 0)
+    p.finishRun(30, 0)
     expect(p.bestSeconds).toBe(120)
   })
 })
@@ -1326,11 +1335,11 @@ describe('Balas con habilidades', () => {
 
 // ═══════════════════════════════════════════════════════════════════════════
 describe('SkillSystem', () => {
-  function armar(projectiles = null) {
+  function armar() {
     const enemies = new EnemyManager(escena)
     const player = { position: { x: 0, y: 0, z: 0 } }
     const mods = createWeaponMods()
-    const s = new SkillSystem(player, enemies, new Progression(), escena, projectiles, mods)
+    const s = new SkillSystem(player, enemies, new Progression(), escena, mods)
     return { s, enemies, mods }
   }
 
@@ -1367,21 +1376,133 @@ describe('SkillSystem', () => {
     expect(enemies.posZ[boss]).toBe(2)
   })
 
-  test('el dron dispara por el mismo pool que el arma', () => {
-    const disparos = []
-    const { s, enemies } = armar({
-      fire: (x, z, dx, dz, def, mult) => {
-        disparos.push({ def, mult })
-        return true
-      },
-    })
-    s.grant('DRONE')
-    enemies.spawn(ENEMY_TYPE.NORMAL, 3, 0)
+})
 
-    s.update(0.016, 0)
 
-    expect(disparos.length).toBeGreaterThan(0)
-    expect(disparos[0].def.damage).toBe(SKILL_DEFS[SKILL.DRONE].levels[0].damage)
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Recolección', () => {
+  /** Enemigos ya muertos: se falsea el buffer de muertos del frame. */
+  function muertos(...filas) {
+    const e = {
+      deathCount: filas.length,
+      deathX: filas.map((f) => f[0]),
+      deathZ: filas.map((f) => f[1]),
+      deathXp: filas.map((f) => f[2]),
+      deathCoin: filas.map((f) => f[3]),
+    }
+    return e
+  }
+
+  test('cada enemigo deja una gema Y una moneda', () => {
+    const p = new PickupManager(escena)
+    p.spawnFromDeaths(muertos([3, 4, 1, 1], [5, 6, 5, 3]))
+
+    expect(p.count).toBe(4)
+    const gemas = [...p.kind.slice(0, 4)].filter((k) => k === PICKUP_KIND.XP).length
+    const monedas = [...p.kind.slice(0, 4)].filter((k) => k === PICKUP_KIND.COIN).length
+    expect(gemas).toBe(2)
+    expect(monedas).toBe(2)
+  })
+
+  test('la tabla de enemigos dice cuánta moneda suelta cada uno', () => {
+    for (const def of ENEMY_DEFS) expect(def.coin > 0).toBe(true)
+  })
+
+  test('lo que se junta se reparte por tipo', () => {
+    const p = new PickupManager(escena)
+    // Encima del jugador: se recoge en el primer update.
+    p._add(PICKUP_KIND.XP, 0, 0, 7)
+    p._add(PICKUP_KIND.COIN, 0, 0, 4)
+    p._add(PICKUP_KIND.HEART, 0, 0, 35)
+
+    p.update(0.016, { x: 0, z: 0 }, 3)
+
+    expect(p.gotXp).toBe(7)
+    expect(p.gotCoins).toBe(4)
+    expect(p.gotHeal).toBe(35)
+    expect(p.count).toBe(0)
+  })
+
+  test('el botín se atrae, el bonus del mapa no', () => {
+    const p = new PickupManager(escena)
+    p._add(PICKUP_KIND.XP, 2, 0, 1) // indice 0
+    p._add(PICKUP_KIND.HEART, -2, 0, 35) // indice 1
+
+    p.update(0.1, { x: 0, z: 0 }, 5)
+
+    // La gema se acercó (sin llegar); el corazón sigue exactamente donde estaba.
+    expect(p.posX[0]).toBeLessThan(2)
+    expect(p.posX[0]).toBeGreaterThan(0)
+    expect(p.posX[1]).toBe(-2)
+  })
+
+  test('el imán agarrado atrae TODO, incluido lo del mapa', () => {
+    const p = new PickupManager(escena)
+    p._add(PICKUP_KIND.HEART, -20, 0, 35)
+    p._add(PICKUP_KIND.MAGNET, 0, 0, 0) // encima: se agarra ya
+
+    p.update(0.016, { x: 0, z: 0 }, 3)
+    expect(p.gotMagnets).toBe(1)
+    expect(p.magnetTimer).toBeGreaterThan(0)
+
+    // Ahora el corazón, que estaba a 20 unidades, viene solo.
+    const antes = p.posX[0]
+    p.update(0.1, { x: 0, z: 0 }, 3)
+    expect(p.posX[0]).toBeGreaterThan(antes)
+  })
+
+  test('el imán no se acumula agarrando dos', () => {
+    const p = new PickupManager(escena)
+    p._add(PICKUP_KIND.MAGNET, 0, 0, 0)
+    p._add(PICKUP_KIND.MAGNET, 0, 0, 0)
+    p.update(0.016, { x: 0, z: 0 }, 3)
+    expect(p.gotMagnets).toBe(2)
+    expect(p.magnetTimer).toBe(CONFIG.PROGRESSION.MAGNET_PICKUP_TIME)
+  })
+
+  test('con el pool lleno, lo que no entra se acredita igual', () => {
+    const p = new PickupManager(escena)
+    p.count = p.max // lleno a mano: llenarlo de verdad son 1200 spawns
+    const sobra = p.spawnFromDeaths(muertos([0, 0, 9, 4]))
+    expect(sobra.xp).toBe(9)
+    expect(sobra.coins).toBe(4)
+  })
+
+  test('el mapa siembra bonus cada tanto, con tope', () => {
+    const p = new PickupManager(escena)
+    const pos = { x: 0, z: 0 }
+    const { BONUS_FIRST_AT, BONUS_EVERY, BONUS_MAX_ON_MAP, BONUS_MIN_DIST } = CONFIG.PROGRESSION
+
+    // Antes del primero no hay nada.
+    p.update(BONUS_FIRST_AT - 1, pos, 0)
+    expect(p.count).toBe(0)
+
+    // Y no se acumulan más del tope, por mucho que pase el tiempo.
+    for (let n = 0; n < 20; n++) p.update(BONUS_EVERY, pos, 0)
+    expect(p.count).toBe(BONUS_MAX_ON_MAP)
+
+    // Ninguno cae encima del jugador: hay que ir a buscarlo.
+    for (let i = 0; i < p.count; i++) {
+      const d = Math.hypot(p.posX[i], p.posZ[i])
+      expect(d).toBeGreaterThan(BONUS_MIN_DIST - 0.001)
+    }
+  })
+
+  test('clear deja el sistema como recién arrancado', () => {
+    const p = new PickupManager(escena)
+    p.spawnFromDeaths(muertos([1, 1, 1, 1]))
+    p.magnetTimer = 2
+    p.clear()
+
+    expect(p.count).toBe(0)
+    expect(p.magnetTimer).toBe(0)
+    expect(p.bonusTimer).toBe(CONFIG.PROGRESSION.BONUS_FIRST_AT)
+  })
+
+  test('las siluetas del mapa son distintas de las del botín', () => {
+    // De lejos y chiquitas, la forma se lee antes que el color.
+    const formas = new Set(PICKUP_DEFS.map((d) => d.shape))
+    expect(formas.size).toBe(PICKUP_DEFS.length)
   })
 })
 

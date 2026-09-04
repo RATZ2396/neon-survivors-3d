@@ -9,6 +9,10 @@
  *
  * El orden del array define el ID numérico que se guarda en el Uint8Array de
  * tipos dentro de EnemyManager. No reordenar sin razón.
+ *
+ * `coin` es la moneda que suelta al morir, y cae al piso como la gema: hay
+ * que ir a buscarla. Reemplazó al pago por baja que antes se cobraba solo al
+ * terminar la partida (ver CONFIG.META).
  */
 export const ENEMY_DEFS = [
   {
@@ -19,6 +23,7 @@ export const ENEMY_DEFS = [
     radius: 0.45,
     damage: 10, // lo consume la Parte D (combate); acá solo se transporta
     xp: 1,
+    coin: 1,
     color: 0xff4d6d,
   },
   {
@@ -31,6 +36,7 @@ export const ENEMY_DEFS = [
     radius: 0.33,
     damage: 6,
     xp: 2,
+    coin: 1,
     color: 0xffd166,
   },
   {
@@ -47,6 +53,7 @@ export const ENEMY_DEFS = [
     radius: 0.8,
     damage: 20,
     xp: 5,
+    coin: 3,
     color: 0x8b5cf6,
   },
   {
@@ -84,6 +91,8 @@ export const ENEMY_DEFS = [
     radius: 2.6,
     damage: 35,
     xp: 120,
+    /** Lo que valía un boss en la fórmula vieja, ahora en el piso. */
+    coin: 60,
     color: 0xffd166,
     /** Nadie lo empuja y la multitud nunca lo bloquea. */
     heavy: true,

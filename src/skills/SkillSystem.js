@@ -7,11 +7,6 @@ const _dummy = new THREE.Object3D()
 
 /** Máximo de orbes que puede dibujar el InstancedMesh del escudo. */
 const MAX_ORBS = 8
-/** Máximo de drones. El tope de la tabla es 3; sobra uno de margen. */
-const MAX_DRONES = 4
-/** A qué distancia orbitan los drones, y a qué velocidad. */
-const DRONE_RADIUS = 2.9
-const DRONE_SPIN = 0.18
 /** Cuánto dura el destello de la onda expansiva. */
 const PULSE_FLASH = 0.3
 
@@ -32,39 +27,17 @@ const PULSE_FLASH = 0.3
  */
 export class SkillSystem {
   /**
-   * @param {ProjectileManager} projectiles por dónde disparan los drones
    * @param {object} mods objeto compartido de WeaponMods; lo escribe este
    *                      sistema y lo leen el arma y los proyectiles
    */
-  constructor(player, enemies, progression, scene, projectiles = null, mods = createWeaponMods()) {
+  constructor(player, enemies, progression, scene, mods = createWeaponMods()) {
     this.player = player
     this.enemies = enemies
     this.progression = progression
-    this.projectiles = projectiles
     this.mods = mods
 
     /** [{ defIndex, level, timer }] — solo las que el jugador consiguió. */
     this.owned = []
-
-    /**
-     * Un reloj por dron, no uno por habilidad: si compartieran el mismo, los
-     * tres dispararían en el mismo frame y se vería como un arma sola.
-     */
-    this.droneTimers = new Float32Array(MAX_DRONES)
-
-    /**
-     * Bala del dron. Es un objeto privado con la forma que espera
-     * `projectiles.fire()`, no una fila de ninguna tabla: se reescribe su
-     * `damage` en cada disparo y por eso NO puede ser un dato compartido.
-     */
-    this._droneShot = {
-      speed: 26,
-      lifetime: 0.9,
-      damage: 0,
-      size: 0.14,
-      pierce: 0,
-      color: 0xa78bfa,
-    }
 
     this._initMeshes(scene)
   }
@@ -109,26 +82,15 @@ export class SkillSystem {
     scene.add(this.pulseMesh)
     this.pulseTimer = 0
     this.pulseRadius = 0
-
-    // Drones
-    const droneGeo = new THREE.OctahedronGeometry(1, 0)
-    const droneMat = new THREE.MeshBasicMaterial({ color: SKILL_DEFS[SKILL.DRONE].color })
-    this.droneMesh = new THREE.InstancedMesh(droneGeo, droneMat, MAX_DRONES)
-    this.droneMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    this.droneMesh.frustumCulled = false
-    this.droneMesh.count = 0
-    scene.add(this.droneMesh)
   }
 
   reset() {
     this.owned.length = 0
     this.orbMesh.count = 0
-    this.droneMesh.count = 0
     this.boltMesh.visible = false
     this.boltTimer = 0
     this.pulseMesh.visible = false
     this.pulseTimer = 0
-    this.droneTimers.fill(0)
     this._recomputeMods()
   }
 
@@ -186,7 +148,6 @@ export class SkillSystem {
 
   update(delta, elapsed) {
     let orbCount = 0
-    let droneCount = 0
 
     for (let s = 0; s < this.owned.length; s++) {
       const entry = this.owned[s]
@@ -195,8 +156,6 @@ export class SkillSystem {
 
       if (def.kind === SKILL_KIND.ORBIT) {
         orbCount = this._updateOrbit(delta, elapsed, lvl)
-      } else if (def.kind === SKILL_KIND.DRONE) {
-        droneCount = this._updateDrones(delta, elapsed, lvl)
       } else if (def.kind === SKILL_KIND.STRIKE) {
         entry.timer -= delta
         if (entry.timer <= 0) {
@@ -215,8 +174,6 @@ export class SkillSystem {
 
     this.orbMesh.count = orbCount
     if (orbCount > 0) this.orbMesh.instanceMatrix.needsUpdate = true
-    this.droneMesh.count = droneCount
-    if (droneCount > 0) this.droneMesh.instanceMatrix.needsUpdate = true
 
     this._updateBolt(delta)
     this._updatePulse(delta)
@@ -367,78 +324,5 @@ export class SkillSystem {
     const t = 1 - this.pulseTimer / PULSE_FLASH
     this.pulseMesh.scale.setScalar(this.pulseRadius * (0.25 + 0.75 * t))
     this.pulseMesh.material.opacity = 1 - t
-  }
-
-  /**
-   * Drones: orbitan lejos y lento, y disparan por su cuenta.
-   *
-   * Las balas salen por el MISMO pool que las del arma, así que heredan lo que
-   * tus habilidades le hicieron a las balas (rebote, empuje, penetración). Es
-   * deliberado: son tus balas, y tratarlas distinto obligaría a mantener dos
-   * caminos de colisión.
-   */
-  _updateDrones(delta, elapsed, lvl) {
-    const n = lvl.count < MAX_DRONES ? lvl.count : MAX_DRONES
-    const px = this.player.position.x
-    const pz = this.player.position.z
-    const step = (Math.PI * 2) / n
-    const base = elapsed * DRONE_SPIN * Math.PI * 2
-
-    for (let d = 0; d < n; d++) {
-      const a = base + step * d
-      const dx = px + Math.cos(a) * DRONE_RADIUS
-      const dz = pz + Math.sin(a) * DRONE_RADIUS
-
-      _dummy.position.set(dx, 1.5, dz)
-      _dummy.rotation.y = a * 2
-      _dummy.scale.setScalar(0.26)
-      _dummy.updateMatrix()
-      this.droneMesh.setMatrixAt(d, _dummy.matrix)
-
-      this.droneTimers[d] -= delta
-      // Si no había blanco el reloj queda en cero y reintenta al frame
-      // siguiente: el dron no "pierde" su disparo por apuntar a la nada.
-      if (this.droneTimers[d] <= 0 && this._droneShoot(dx, dz, lvl)) {
-        this.droneTimers[d] = lvl.interval
-      }
-    }
-
-    return n
-  }
-
-  /** @returns {boolean} si llegó a disparar */
-  _droneShoot(dx, dz, lvl) {
-    if (!this.projectiles) return false
-
-    const e = this.enemies
-    const rangeSq = lvl.range * lvl.range
-    let best = -1
-    let bestSq = rangeSq
-
-    for (let i = 0; i < e.count; i++) {
-      const ex = e.posX[i] - dx
-      const ez = e.posZ[i] - dz
-      const dSq = ex * ex + ez * ez
-      if (dSq < bestSq) {
-        bestSq = dSq
-        best = i
-      }
-    }
-    if (best === -1) return false
-
-    const tx = e.posX[best] - dx
-    const tz = e.posZ[best] - dz
-    const dist = Math.sqrt(bestSq)
-    if (dist < 0.0001) return false
-
-    this._droneShot.damage = lvl.damage
-    return this.projectiles.fire(
-      dx,
-      dz,
-      tx / dist,
-      tz / dist,
-      this._droneShot,
-      this.progression.stats.damageMult,
-    )
   }
 }

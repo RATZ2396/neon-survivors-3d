@@ -106,7 +106,6 @@ export class SkillLab {
   _kindLabel(kind) {
     if (kind === SKILL_KIND.ORBIT) return 'orbita · daño por contacto'
     if (kind === SKILL_KIND.PULSE) return 'onda · daña y empuja'
-    if (kind === SKILL_KIND.DRONE) return 'acompañantes · disparan solos'
     if (kind === SKILL_KIND.WEAPON) return 'cambia cómo dispara tu arma'
     return 'golpe puntual · cada N segundos'
   }
@@ -182,10 +181,6 @@ export class SkillLab {
     }
     if (def.kind === SKILL_KIND.PULSE) {
       return `${l.damage} cada ${l.interval}s · radio ${l.radius} · empuje ${l.push}`
-    }
-    if (def.kind === SKILL_KIND.DRONE) {
-      const dps = Math.round((l.count * l.damage) / l.interval)
-      return `${l.count} × ${l.damage} cada ${l.interval}s · alcance ${l.range} (${dps} dps)`
     }
     if (def.kind === SKILL_KIND.WEAPON) {
       // Los modificadores no tienen una unidad común: se listan crudos, que

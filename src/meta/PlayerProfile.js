@@ -160,18 +160,24 @@ export class PlayerProfile {
   }
 
   /**
-   * Recompensa de una partida. Es la única fuente de moneda del juego.
+   * Recompensa de una partida.
+   *
+   * `coins` es lo que el jugador JUNTÓ del piso, no lo que soltaron los
+   * enemigos: lo que quedó tirado no se paga. Antes esto contaba bajas y
+   * bosses, y era plata que llegaba sola por matar; ahora matar deja una
+   * moneda en el piso y hay que ir. Lo único que sigue pagándose sin
+   * juntarlo es el tiempo sobrevivido.
+   *
    * No guarda: el que decide cuándo cerrar la partida es el GameManager.
    */
-  static rewardFor(seconds, kills, bosses) {
-    const { REWARD_PER_SECOND, REWARD_PER_KILL, REWARD_PER_BOSS, REWARD_MIN } = CONFIG.META
-    const raw = seconds * REWARD_PER_SECOND + kills * REWARD_PER_KILL + bosses * REWARD_PER_BOSS
-    return Math.max(REWARD_MIN, Math.round(raw))
+  static rewardFor(seconds, coins) {
+    const { REWARD_PER_SECOND, REWARD_MIN } = CONFIG.META
+    return Math.max(REWARD_MIN, Math.round(seconds * REWARD_PER_SECOND + coins))
   }
 
   /** Cierra la partida: acredita la recompensa y persiste. */
-  finishRun(seconds, kills, bosses) {
-    const reward = PlayerProfile.rewardFor(seconds, kills, bosses)
+  finishRun(seconds, coins) {
+    const reward = PlayerProfile.rewardFor(seconds, coins)
     this.currency += reward
     this.runs++
     if (seconds > this.bestSeconds) this.bestSeconds = seconds

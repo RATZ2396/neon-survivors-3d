@@ -25,7 +25,15 @@ import { SKILL_DEFS, SKILL } from './SkillDefs.js'
  * ctx = { player, weapons, skills, progression }
  */
 
-/** Mejoras de estadística. `stacks` es cuántas veces se puede tomar. */
+/**
+ * Mejoras de estadística. `stacks` es cuántas veces se puede tomar.
+ *
+ * Había una más, `Imán` (+60% de radio de recolección). Se sacó al agregar
+ * el imán que aparece en el mapa: dos cosas con el mismo nombre haciendo lo
+ * mismo, una permanente y gratis y la otra buscada, y la permanente le comía
+ * el sentido a la otra. El radio base subió para compensar (ver
+ * CONFIG.PROGRESSION.MAGNET_RADIUS).
+ */
 const STAT_UPGRADES = [
   {
     key: 'DMG',
@@ -71,16 +79,6 @@ const STAT_UPGRADES = [
     },
   },
   {
-    key: 'MAGNET',
-    name: 'Imán',
-    desc: '+60% de radio de recolección',
-    stacks: 3,
-    weight: 2,
-    apply: (ctx) => {
-      ctx.progression.stats.magnetRadius *= 1.6
-    },
-  },
-  {
     key: 'HEAL',
     name: 'Botiquín',
     desc: 'Recupera 60 de vida ahora',
@@ -90,7 +88,7 @@ const STAT_UPGRADES = [
     // una opción muerta justo cuando la decisión debería importar.
     available: (ctx) => ctx.player.hp < ctx.player.maxHp * 0.75,
     apply: (ctx) => {
-      ctx.player.hp = Math.min(ctx.player.maxHp, ctx.player.hp + 60)
+      ctx.player.heal(60)
     },
   },
 ]

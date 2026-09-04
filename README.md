@@ -31,9 +31,9 @@ Son dos progresiones distintas y no se mezclan:
 
 | | Arma base | Habilidades |
 |---|---|---|
-| Cuáles | pistola · escopeta · metralleta | 4 de base + 3 propias del arma |
+| Cuáles | pistola · escopeta · metralleta | 3 de base + 3 propias del arma |
 | Cuándo se elige | **antes** de la partida, en la pantalla de inicio | **durante** la partida, al subir de nivel |
-| Cuántas por partida | una sola, no cambia | 7 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
+| Cuántas por partida | una sola, no cambia | 6 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
 | Cómo se mejoran | **fuera** de la partida, en el taller, con la moneda ganada | **dentro** de la partida, con la XP de las gemas |
 | Se pierden al morir | no, son permanentes | sí, se empieza de cero |
 | Dónde se editan | `config/WeaponDefs.js` y `config/MetaDefs.js` | `config/SkillDefs.js` |
@@ -44,10 +44,12 @@ El arma define **cómo se juega toda la partida**; las habilidades definen **en 
 
 No hay arsenal: el arma elegida es la única de la partida. La profundidad sale de las habilidades, y por eso hay **dos familias**:
 
-- **Base compartida (4).** Las ve cualquier personaje: escudo orbital, rayo, onda expansiva y dron.
+- **Base compartida (3).** Las ve cualquier personaje: escudo orbital, rayo y onda expansiva.
 - **Propias del arma (3 por arma).** Solo aparecen en el menú de nivel si estás jugando con esa arma. La diferencia en la tabla es una sola clave: `weapon: 'SHOTGUN'`.
 
-Con 7 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
+Con 6 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
+
+Hubo una cuarta de base, el **Dron** —acompañantes que disparaban solos—, y se sacó justamente por la regla de arriba: un acompañante que dispara por su cuenta es una segunda arma con otro nombre.
 
 Las propias del arma no hacen daño por su cuenta — cambian **qué balas salen**. Viven en `kind: WEAPON` y publican modificadores en `combat/WeaponMods.js`, un objeto que escribe `SkillSystem` y leen `WeaponSystem` (qué se dispara) y `ProjectileManager` (qué hace cada bala al pegar). Misma regla de siempre: `WEAPON_DEFS` no se muta nunca.
 
@@ -61,9 +63,28 @@ La pantalla de inicio es también el taller. Ahí se ve la moneda acumulada y el
 | Escopeta | daño · cadencia · **carga ampliada** (+1 perdigón, hasta 3) · alcance (caro: es su punto débil) |
 | Metralleta | **cadencia** (5 niveles) · daño · alcance |
 
-La moneda es lo único que sobrevive a la muerte y sale de una sola fuente: terminar una partida. `tiempo × 1.2 + bajas × 0.6 + bosses × 60`, con un piso de 5. Todo se guarda en `localStorage` bajo `neon-survivors.profile.v1`.
+La moneda es lo único que sobrevive a la muerte. **Sale del piso**: cada enemigo suelta una al morir y hay que ir a juntarla, igual que la gema de XP. Al terminar se cobra `tiempo × 1.2 + moneda juntada`, con un piso de 5. Todo se guarda en `localStorage` bajo `neon-survivors.profile.v1`.
+
+Antes la fórmula pagaba `bajas × 0.6 + bosses × 60` al terminar: plata que llegaba sola por matar. Ahora matar deja algo **en el lugar donde estaba el peligro**, y lo que dejás tirado no se cobra. El tiempo sobrevivido es lo único que se sigue pagando sin juntarlo.
 
 Botón **Borrar perfil** en el taller para empezar de cero.
+
+### Lo que se junta del piso
+
+Cuatro cosas, un solo sistema (`progression/PickupManager.js`), y la clave que las parte en dos es `loot` en `config/PickupDefs.js`:
+
+| | Qué es | De dónde sale | ¿Lo atrae el imán normal? |
+|---|---|---|---|
+| **Gema** | experiencia | la suelta cada enemigo | sí |
+| **Moneda** | la del taller | la suelta cada enemigo | sí |
+| **Corazón** | cura 35 | aparece solo en el mapa | no, hay que ir |
+| **Imán** | atrae TODO por 2.5s | aparece solo en el mapa | no, hay que ir |
+
+La diferencia no es cosmética. La gema y la moneda son la recompensa de matar: si te las atrajera todo el mapa no tendrías que moverte, y moverte a buscarlas **es** el juego. El corazón y el imán son lo contrario — una razón para ir a un lugar puntual, decidida por el mapa y no por vos. Aparecen cada 26 s a entre 9 y 24 unidades tuyas, con un tope de 3 a la vez: si no vas, el mapa deja de ofrecerte.
+
+El imán agarrado es la única excepción a todo eso: mientras dura, arrastra hasta lo que normalmente no se mueve.
+
+También desapareció la mejora **`Imán`** del menú de nivel (+60% de radio, permanente). Dos cosas con el mismo nombre haciendo lo mismo —una gratis y para siempre, la otra buscada y temporal— y la permanente le comía el sentido a la otra. El radio base subió de 2.6 a 3.4 para compensar la que ya no está.
 
 ### Laboratorio de habilidades
 
@@ -78,7 +99,6 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 | **Escudo orbital** | orbes girando, daño por contacto | 2 orbes · 20 dps c/u · radio 2.0 | 5 orbes · 58 dps c/u · radio 2.6 |
 | **Rayo** | golpe puntual sobre el más cercano | 45 cada 3.0s · radio 2.6 (15 dps) | 140 cada 1.8s · radio 3.5 (78 dps) |
 | **Onda expansiva** | daña y **empuja** lo que te rodea | 30 cada 3.2s · radio 4.0 · empuje 1.6 | 105 cada 2.0s · radio 6.2 · empuje 3.0 |
-| **Dron** | acompañantes que disparan solos | 1 × 10 cada 0.9s · alcance 12 | 3 × 20 cada 0.6s · alcance 16 |
 
 **Propias del arma — solo con ella**
 
@@ -128,7 +148,7 @@ src/
 │   └── ContactDamage.js          daño de la horda al jugador
 ├── progression/
 │   ├── Progression.js            nivel, XP y multiplicadores de la partida
-│   └── GemManager.js             gemas de XP con imán
+│   └── PickupManager.js          gemas, monedas, corazones e imanes
 ├── skills/SkillSystem.js         las 3 skills, un solo resolutor
 ├── audio/SoundManager.js        sintetiza y reproduce; presupuesto de voces
 ├── audio/GameAudio.js           qué suena en cada hecho del frame
@@ -145,13 +165,14 @@ src/
 ├── config/BossDefs.js            comportamiento del boss
 ├── config/WeaponDefs.js          las 3 armas base
 ├── config/SkillDefs.js           las habilidades, con sus 5 niveles
+├── config/PickupDefs.js         lo que se junta del piso, y cuál se atrae
 ├── combat/WeaponMods.js          lo que las habilidades de personaje le cambian al arma
 ├── config/UpgradeDefs.js         mazo de mejoras del menú de nivel (de partida)
 ├── config/MetaDefs.js            árboles de mejora permanente, uno por arma
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 ├── config/VfxDefs.js             las 7 explosiones de partículas
 ├── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
-└── tests/                        `npm test` — 127 tests, sin dependencias
+└── tests/                        `npm test` — 137 tests, sin dependencias
 ```
 
 `HUD.js` y `PerformanceMonitor.js` están separados a propósito y no comparten datos: uno es información del **juego**, el otro es **diagnóstico**. En la versión anterior estaban mezclados en overlays superpuestos y no se distinguía cuál era cuál.
@@ -287,7 +308,7 @@ Las mejoras de arma y de skill **no están escritas a mano**: se derivan de `WEA
 | Criterio | Medición |
 |---|---|
 | La XP no se cobra sola | el enemigo muere a 12 u y la gema **queda en el piso**; se recoge al acercarse |
-| Efecto de las mejoras | daño ×1 → **1.30** (2 tomas) · cadencia ×1 → **0.81** · velocidad **+8%** · vida **100 → 125** · imán **2.6 → 4.16** |
+| Efecto de las mejoras | daño ×1 → **1.30** (2 tomas) · cadencia ×1 → **0.81** · velocidad **+8%** · vida **100 → 125** · imán **2.6 → 4.16** (la mejora `Imán` se sacó después de esta medición) |
 | Daño de las skills | Aura **240 dps** sobre 24 blancos (10 dps × 24, exacto) · Rayo **213 dps** · Escudo orbital **74 dps**. El aura se sacó del juego después de esta medición; el número queda porque la medición pasó. |
 | Varios niveles de golpe | se encolan y se eligen de a uno; el menú reabre solo |
 | Reinicio | nivel, mejoras, armas, skills, gemas y estadísticas vuelven a cero |
@@ -431,7 +452,7 @@ El GDD exige que **toda métrica de esta parte venga de una captura real, no de 
 |---|---|---|---|
 | Enemigos | 400 | 400 | no spawnea más |
 | Proyectiles | 600 | ~120 | el disparo se pierde |
-| Gemas | 600 | — | la XP se acredita directo, no se pierde |
+| Recolectables | 1200 | — | lo que no entra se acredita directo, no se pierde |
 | Partículas | 900 | 896 | se descarta la nueva |
 | Números flotantes | 18 | 18 | se pisa el más viejo |
 | Voces de audio | 20 | 4 | entra solo si tiene más prioridad |
@@ -446,9 +467,9 @@ No se escribió un `ObjectPool` genérico como sugería el GDD. Cada sistema tie
 npm test
 ```
 
-**127 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
+**137 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
 
-Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · **filtro de habilidades por arma** · **modificadores del arma** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
+Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · filtro de habilidades por arma · modificadores del arma · **recolección (gema, moneda, corazón, imán)** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
 
 Tres merecen mención porque **defienden bugs que ya ocurrieron**:
 

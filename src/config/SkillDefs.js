@@ -7,7 +7,6 @@
  *   ORBIT  — orbes girando alrededor del jugador (el escudo orbital del GDD v1)
  *   STRIKE — un golpe puntual cada N segundos sobre un enemigo (el rayo del v1)
  *   PULSE  — una onda que sale del jugador: daña y EMPUJA
- *   DRONE  — acompañantes que disparan solos al más cercano
  *   WEAPON — no hace daño por su cuenta: cambia cómo dispara TU arma
  *
  * DOS FAMILIAS, y la diferencia es el campo `weapon`:
@@ -21,9 +20,11 @@
  * modificadores en el objeto de WeaponMods.js, que leen WeaponSystem y
  * ProjectileManager. Misma regla de siempre — NUNCA se muta WEAPON_DEFS.
  *
- * Hubo un tercer kind, AURA — "Campo de fuerza": un círculo fijo pegado al
- * jugador que dañaba todo lo que tuviera cerca. Se sacó por decisión de
- * diseño, no porque fallara.
+ * DOS QUE SE SACARON, las dos por decisión de diseño y no porque fallaran:
+ * AURA ("Campo de fuerza", un círculo pegado al jugador) y DRONE
+ * (acompañantes que disparaban solos). El dron además chocaba con la regla
+ * que ordena todo esto: un personaje, un arma. Un acompañante que dispara
+ * por su cuenta es una segunda arma con otro nombre.
  *
  * `levels` es explícito nivel por nivel, no una fórmula base+incremento. Es más
  * texto pero se lee de un vistazo qué pasa en cada nivel, y balancear no obliga
@@ -34,7 +35,6 @@ export const SKILL_KIND = {
   ORBIT: 'ORBIT',
   STRIKE: 'STRIKE',
   PULSE: 'PULSE',
-  DRONE: 'DRONE',
   WEAPON: 'WEAPON',
 }
 
@@ -90,25 +90,6 @@ export const SKILL_DEFS = [
       { damage: 58, radius: 5.0, interval: 2.6, push: 2.2 },
       { damage: 78, radius: 5.6, interval: 2.3, push: 2.6 },
       { damage: 105, radius: 6.2, interval: 2.0, push: 3.0 },
-    ],
-  },
-  {
-    key: 'DRONE',
-    name: 'Dron',
-    desc: 'Acompañantes que giran a tu alrededor y disparan solos.',
-    kind: SKILL_KIND.DRONE,
-    color: 0xa78bfa,
-    /**
-     * Dispara balas de verdad, por el mismo pool que el arma. `interval` es
-     * por dron, no del conjunto: tres drones a 0.6 s tiran cinco balas por
-     * segundo entre los tres.
-     */
-    levels: [
-      { count: 1, damage: 10, interval: 0.9, range: 12 },
-      { count: 1, damage: 14, interval: 0.75, range: 13 },
-      { count: 2, damage: 14, interval: 0.75, range: 14 },
-      { count: 2, damage: 18, interval: 0.65, range: 15 },
-      { count: 3, damage: 20, interval: 0.6, range: 16 },
     ],
   },
 

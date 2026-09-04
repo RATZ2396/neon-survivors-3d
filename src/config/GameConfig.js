@@ -187,14 +187,49 @@ export const CONFIG = {
   },
 
   PROGRESSION: {
-    /** Techo del pool de gemas. Si se llena, la XP se acredita directa (ver GemManager). */
-    MAX_GEMS: 600,
-    /** Radio de atracción base. Las mejoras lo agrandan. */
-    MAGNET_RADIUS: 2.6,
-    /** Velocidad a la que la gema vuela hacia el jugador una vez atraída. */
+    /**
+     * Techo del pool de recolectables. Cada enemigo deja DOS cosas —gema y
+     * moneda—, así que es el doble del que había cuando solo había gemas.
+     * Si se llena, lo que no entra se acredita directo (ver PickupManager).
+     */
+    MAX_PICKUPS: 1200,
+    /**
+     * Radio de atracción base.
+     *
+     * Era 2.6 cuando existía la mejora `Imán`, que lo multiplicaba hasta
+     * ×4 en una partida buena. Al sacarla, 2.6 fijo dejaba el piso
+     * sembrado de cosas imposibles de juntar sin pasar por encima de cada
+     * una. Se subió a 3.4 para compensar la mejora que ya no está: el imán
+     * grande ahora aparece en el mapa y dura unos segundos, no es
+     * permanente.
+     */
+    MAGNET_RADIUS: 3.4,
+    /** Velocidad a la que lo atraído vuela hacia el jugador. */
     MAGNET_SPEED: 16,
     /** Distancia a la que se recoge. */
     PICKUP_RADIUS: 0.7,
+
+    /** Cuánto cura el corazón que aparece en el mapa. */
+    HEART_HEAL: 35,
+    /**
+     * El imán del mapa: cuántos segundos dura y cuánto acelera la
+     * atracción mientras tanto. 2.5 s a 48 u/s alcanza para barrer una
+     * arena de 120 de lado de punta a punta, que es lo que promete.
+     */
+    MAGNET_PICKUP_TIME: 2.5,
+    MAGNET_PICKUP_BOOST: 3,
+
+    /**
+     * Bonus del mapa (corazón e imán). No los suelta nadie: aparecen solos
+     * cerca tuyo pero no encima, para que ir a buscarlos sea una decisión.
+     * El tope de cuántos hay a la vez evita que juntar polvo se convierta
+     * en una reserva: si no vas, el mapa deja de ofrecerte.
+     */
+    BONUS_FIRST_AT: 20,
+    BONUS_EVERY: 26,
+    BONUS_MAX_ON_MAP: 3,
+    BONUS_MIN_DIST: 9,
+    BONUS_MAX_DIST: 24,
 
     /**
      * Curva de nivel: XP_BASE * XP_GROWTH^(nivel-1).
@@ -245,12 +280,17 @@ export const CONFIG = {
    * solo (XP, niveles, habilidades) adentro de la partida.
    */
   META: {
-    /** Moneda por segundo sobrevivido. */
+    /**
+     * ACÁ FALTAN DOS CLAVES QUE EXISTÍAN: moneda por baja y moneda por boss.
+     *
+     * Se fueron cuando los enemigos empezaron a soltar monedas de verdad,
+     * que hay que ir a juntar del piso (ver PickupDefs). Cobrar además por
+     * cada baja al terminar la partida sería pagar dos veces lo mismo, y
+     * peor: haría que juntarlas no importara. Lo que sueltan está en la
+     * columna `coin` de ENEMY_DEFS.
+     */
+    /** Moneda por segundo sobrevivido. Es el único pago que no hay que juntar. */
     REWARD_PER_SECOND: 1.2,
-    /** Moneda por baja. */
-    REWARD_PER_KILL: 0.6,
-    /** Moneda por boss derrotado. */
-    REWARD_PER_BOSS: 60,
     /** Piso: una partida de diez segundos igual deja algo. */
     REWARD_MIN: 5,
   },

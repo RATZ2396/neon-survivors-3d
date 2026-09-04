@@ -29,6 +29,10 @@ export class GameAudio {
     if (ev.playerDied) s.play('PLAYER_DEATH')
 
     if (ev.gems > 0) s.play('GEM', 0.92 + Math.random() * 0.18)
+    // El bonus del mapa reusa el sonido de elegir mejora en vez de sumar uno
+    // nuevo a la tabla: dice lo mismo —conseguiste algo bueno— y agregar un
+    // sonido es una decisión de diseño de audio, no una consecuencia de esto.
+    if (ev.bonus) s.play('UPGRADE_PICK')
     if (ev.levels > 0) s.play('LEVEL_UP')
 
     if (ev.bossSpawned) s.play('BOSS_SPAWN')

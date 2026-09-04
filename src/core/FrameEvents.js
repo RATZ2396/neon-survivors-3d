@@ -39,6 +39,8 @@ export class FrameEvents {
     this.playerDied = false
     this.gems = 0
     this.levels = 0
+    /** Se agarró un corazón o un imán del mapa este frame. */
+    this.bonus = false
     this.bossSpawned = false
     this.bossDied = false
     /** '' | 'TELEGRAPH' | 'CHARGING' si cambió este frame; null si no cambió. */
@@ -75,6 +77,7 @@ export class FrameEvents {
     this.playerDied = false
     this.gems = 0
     this.levels = 0
+    this.bonus = false
     this.bossSpawned = false
     this.bossDied = false
     this.bossPhase = null
@@ -86,8 +89,9 @@ export class FrameEvents {
   /**
    * @param {number} gems XP cobrada este frame (la calcula el loop)
    * @param {number} levels niveles subidos este frame
+   * @param {boolean} bonus si se agarró un corazón o un imán del mapa
    */
-  update(gems, levels) {
+  update(gems, levels, bonus = false) {
     this._clear()
 
     // Un disparo de escopeta emite 6 proyectiles: es UN disparo, no seis.
@@ -118,6 +122,7 @@ export class FrameEvents {
 
     this.gems = gems
     this.levels = levels
+    this.bonus = bonus
 
     const bossActive = this.boss.active
     if (bossActive && !this._bossActive) this.bossSpawned = true

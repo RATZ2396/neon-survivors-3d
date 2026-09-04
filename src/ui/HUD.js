@@ -152,7 +152,8 @@ export class HUD {
 
     this.stats.textContent =
       `${mm}:${ss}   oleada ${this.waves.stageIndex + 1}   ` +
-      `enemigos ${this.enemies.count}   bajas ${this.enemies.killCount}${mira}`
+      `enemigos ${this.enemies.count}   bajas ${this.enemies.killCount}   ` +
+      `◈ ${Math.round(this.progression.coins)}${mira}`
   }
 
   /**

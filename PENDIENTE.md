@@ -15,9 +15,10 @@ recolección y los enemigos — nunca de sumar armas.
 **~~Sacar `Campo de fuerza`~~ — hecho.** Ya no está en `SkillDefs.js`, y con
 ella se fue el `kind` `AURA` entero.
 
-**~~Las 2 habilidades base que faltaban~~ — hechas.** `Onda expansiva` (daña
-y empuja) y `Dron` (acompañantes que disparan solos). La base quedó en 4:
-escudo orbital, rayo, onda y dron.
+**~~Las habilidades base que faltaban~~ — hechas.** Se agregaron `Onda
+expansiva` (daña y empuja) y `Dron`, y el dron se sacó enseguida: chocaba
+con la regla de arriba, un acompañante que dispara solo es una segunda arma
+con otro nombre. La base quedó en 3: escudo orbital, rayo y onda.
 
 **~~Las 3 propias de cada personaje~~ — hechas.** Se decidieron el 2026-09-04
 y son modificadores del arma, no armas nuevas:
@@ -28,7 +29,7 @@ y son modificadores del arma, no armas nuevas:
 | Cañón trasero | Abanico trasero | Doble línea |
 | Perforación total | Doble cañón | Bala explosiva |
 
-La cuenta cierra: **7 al alcance por partida** (4 de base + 3 propias) con un
+La cuenta cierra: **6 al alcance por partida** (3 de base + 3 propias) con un
 techo de 4 equipadas, así que nunca las tenés todas.
 
 **Lo que queda del punto 1:** unificar arma y habilidad en un solo sistema.
@@ -36,14 +37,20 @@ techo de 4 equipadas, así que nunca las tenés todas.
 son armas. Esa división hoy solo agrega código. Ojo que las de `kind: WEAPON`
 ya cruzaron media frontera: viven en `SkillDefs` pero las aplica el arma.
 
-## 2. Recolección
+## 2. ~~Recolección~~ — hecha
 
-- **Dinero:** lo suelta **cada enemigo**, se junta como las gemas, y se gasta
-  en el taller igual que ahora.
-- **Sacar la mejora `Imán`** del menú de subir de nivel.
-- **Objetos que aparecen en el mapa cada cierto tiempo**, no los suelta nadie:
-  - **corazón** — regenera vida
-  - **imán** — atrae todo lo recolectable del mapa
+- **~~Dinero~~:** cada enemigo suelta una moneda (`coin` en `ENEMY_DEFS`), se
+  junta como las gemas y se gasta en el taller. La recompensa de fin de
+  partida dejó de pagar por baja y por boss: eso ahora está en el piso.
+- **~~Sacar la mejora `Imán`~~.** Fuera del mazo. El radio base subió de 2.6 a
+  3.4 para compensarla.
+- **~~Objetos en el mapa~~:** corazón (cura 35) e imán (atrae todo por 2.5 s).
+  Aparecen cada 26 s, a 9-24 unidades tuyas, tope de 3 a la vez.
+
+Todo vive en `config/PickupDefs.js` + `progression/PickupManager.js`, que
+reemplazó a `GemManager`. El archivo viejo terminaba diciendo "es el tercer
+sistema con esta forma; si hiciera falta un cuarto, ahí sí valdría
+abstraerlo" — habrían hecho falta un cuarto y un quinto.
 
 ## 3. Vida
 

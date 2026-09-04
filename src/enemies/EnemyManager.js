@@ -61,6 +61,7 @@ export class EnemyManager {
     this.deathX = new Float32Array(max)
     this.deathZ = new Float32Array(max)
     this.deathXp = new Float32Array(max)
+    this.deathCoin = new Float32Array(max)
     /** Color del que murió, para que las partículas salgan de su color. */
     this.deathColor = new Int32Array(max)
     this.deathCount = 0
@@ -170,6 +171,7 @@ export class EnemyManager {
     this.deathX[d] = this.posX[i]
     this.deathZ[d] = this.posZ[i]
     this.deathXp[d] = xp
+    this.deathCoin[d] = ENEMY_DEFS[this.type[i]].coin
     this.deathColor[d] = ENEMY_DEFS[this.type[i]].color
 
     this._remove(i)

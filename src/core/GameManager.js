@@ -13,7 +13,7 @@ import { ContactDamage } from '../combat/ContactDamage.js'
 import { HUD } from '../ui/HUD.js'
 import { UpgradeMenu } from '../ui/UpgradeMenu.js'
 import { Progression } from '../progression/Progression.js'
-import { GemManager } from '../progression/GemManager.js'
+import { PickupManager } from '../progression/PickupManager.js'
 import { SkillSystem } from '../skills/SkillSystem.js'
 import { BossController } from '../enemies/BossController.js'
 import { StartMenu } from '../ui/StartMenu.js'
@@ -74,15 +74,8 @@ export class GameManager {
     this.weapons = new WeaponSystem(this.player, this.enemies, this.projectiles, this.weaponMods)
     this.contact = new ContactDamage(this.player, this.enemies)
     this.progression = new Progression()
-    this.gems = new GemManager(this.scene)
-    this.skills = new SkillSystem(
-      this.player,
-      this.enemies,
-      this.progression,
-      this.scene,
-      this.projectiles,
-      this.weaponMods,
-    )
+    this.pickups = new PickupManager(this.scene)
+    this.skills = new SkillSystem(this.player, this.enemies, this.progression, this.scene, this.weaponMods)
     this.weapons.progression = this.progression // las mejoras de partida afectan daño y cadencia
 
     // Perfil: lo único que sobrevive a cerrar el navegador. El arma lo lee al
@@ -343,11 +336,9 @@ export class GameManager {
   _settleRun() {
     if (!this._runOpen) return 0
     this._runOpen = false
-    const pago = this.profile.finishRun(
-      this.waves.elapsed,
-      this.enemies.killCount,
-      this.boss.defeated,
-    )
+    // Se paga por lo que JUNTASTE, no por lo que mataste: lo que quedó
+    // tirado en el piso no cuenta. Ver PlayerProfile.rewardFor.
+    const pago = this.profile.finishRun(this.waves.elapsed, this.progression.coins)
     // _lastReward se escribe antes de grabar para que el informe lo incluya:
     // en el camino de "abandonar" nadie más lo asigna.
     this._lastReward = pago
@@ -430,7 +421,7 @@ export class GameManager {
     this.cameraController.snap()
     this.enemies.clear()
     this.projectiles.clear()
-    this.gems.clear()
+    this.pickups.clear()
     this.particles.clear()
     this.floaters.clear()
     this.waves.reset()
@@ -544,9 +535,17 @@ export class GameManager {
       this.cameraController.update(delta)
 
       // La XP no se cobra al matar: cae como gema y hay que ir a buscarla.
-      const overflow = this.gems.spawnFromDeaths(this.enemies)
-      const picked = this.gems.update(delta, this.player.position, this.progression.stats.magnetRadius)
-      const subidos = this.progression.addXp(picked + overflow)
+      // Ni la XP ni la moneda se cobran al matar: caen al piso y hay que ir a
+      // buscarlas. Lo que no entró en el pool (`sobra`) se acredita igual: el
+      // techo del pool es un límite de memoria, no una regla del juego.
+      const sobra = this.pickups.spawnFromDeaths(this.enemies)
+      this.pickups.update(delta, this.player.position, this.progression.stats.magnetRadius)
+
+      const xp = this.pickups.gotXp + sobra.xp
+      this.progression.coins += this.pickups.gotCoins + sobra.coins
+      if (this.pickups.gotHeal > 0) this.player.heal(this.pickups.gotHeal)
+
+      const subidos = this.progression.addXp(xp)
       this._pendingLevels += subidos
 
       // Audio y partículas van DESPUÉS de la simulación: leen el frame ya
@@ -556,7 +555,7 @@ export class GameManager {
       // primero se deducen los hechos, después el VFX emite las partículas
       // nuevas, y recién ahí se integran y se dibujan. Emitir después de
       // sincronizar haría que cada explosión apareciera un frame tarde.
-      this.events.update(picked + overflow, subidos)
+      this.events.update(xp, subidos, this.pickups.gotHeal > 0 || this.pickups.gotMagnets > 0)
       this.audio.update(this.events)
       this.vfx.update(this.events)
       this._spawnFloaters()
@@ -564,7 +563,7 @@ export class GameManager {
 
       this.enemies.sync(this.time.elapsed, this.player.position)
       this.projectiles.sync()
-      this.gems.sync(this.time.elapsed)
+      this.pickups.sync(this.time.elapsed)
       this.particles.sync()
 
       if (this.player.isDead) this._endRun()

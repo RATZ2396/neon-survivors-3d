@@ -78,7 +78,7 @@ export class RunRecorder {
     if (e.count > this.picos.enemigos) this.picos.enemigos = e.count
     if (g.projectiles.count > this.picos.proyectiles) this.picos.proyectiles = g.projectiles.count
     if (g.particles.count > this.picos.particulas) this.picos.particulas = g.particles.count
-    if (g.gems.count > this.picos.gemas) this.picos.gemas = g.gems.count
+    if (g.pickups.count > this.picos.gemas) this.picos.gemas = g.pickups.count
 
     if (g.weapons.aimActive) this.segManual += delta
     else this.segAuto += delta
@@ -127,6 +127,7 @@ export class RunRecorder {
       bajas: e.killCount,
       nivelFinal: g.progression.level,
       recompensa: g._lastReward,
+      monedasJuntadas: Math.round(g.progression.coins),
       habilidades: g.skills.owned.map((o) => ({ def: o.defIndex, nivel: o.level })),
       decisiones: this.decisiones,
 
