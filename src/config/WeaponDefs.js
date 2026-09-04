@@ -36,7 +36,8 @@ export const WEAPON_DEFS = [
     spreadDeg: 0,
     speed: 30,
     lifetime: 1.2,
-    pierce: 0,
+    /** Atraviesa hasta 3 cuerpos de basura. El boss y el tanque la frenan igual. */
+    pierce: 3,
     size: 0.2,
     color: 0x39d0ff,
   },
@@ -52,7 +53,8 @@ export const WEAPON_DEFS = [
     spreadDeg: 34,
     speed: 24,
     lifetime: 0.55,
-    pierce: 1,
+    /** Ya dispara 6 perdigones: no necesita tanta penetración como la pistola. */
+    pierce: 2,
     size: 0.17,
     color: 0xffd166,
   },
@@ -68,7 +70,8 @@ export const WEAPON_DEFS = [
     spreadDeg: 8,
     speed: 34,
     lifetime: 0.9,
-    pierce: 0,
+    /** Poco daño por bala, así que atravesar mucho la haría absurda. */
+    pierce: 2,
     size: 0.13,
     color: 0x8bffb0,
   },

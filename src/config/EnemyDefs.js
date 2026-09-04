@@ -35,6 +35,12 @@ export const ENEMY_DEFS = [
   },
   {
     key: 'TANK',
+    /**
+     * Frena las balas sin ser blanco prioritario: eso lo convierte en un
+     * escudo andante para la horda, que es lo único interesante que puede
+     * aportar un enemigo gordo y lento.
+     */
+    blocksShots: true,
     name: 'Tank',
     hp: 80,
     speed: 1.9,
@@ -61,6 +67,10 @@ export const ENEMY_DEFS = [
      * RUNNER y TANK.
      */
     key: 'BOSS',
+    /** Blanco prioritario: el arma le apunta aunque no sea el más cercano. */
+    priorityTarget: true,
+    /** Frena las balas. La basura no; él sí. Ver ProjectileManager. */
+    blocksShots: true,
     name: 'The Cube King',
     hp: 5000,
     speed: 2.3,

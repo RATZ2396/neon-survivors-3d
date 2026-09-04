@@ -28,6 +28,7 @@ import { FloatingText } from '../ui/FloatingText.js'
 import { SkillLab } from '../ui/SkillLab.js'
 import { rollUpgrades } from '../config/UpgradeDefs.js'
 import { PerformanceMonitor } from '../perf/PerformanceMonitor.js'
+import { RunRecorder } from '../dev/RunRecorder.js'
 
 export const GAME_STATE = {
   MENU: 'MENU',
@@ -146,6 +147,13 @@ export class GameManager {
     )
     this.monitor = new PerformanceMonitor()
 
+    /**
+     * Caja negra de la partida. Igual que el laboratorio de habilidades: es
+     * una herramienta para diseñar, no parte del juego, así que en producción
+     * no existe. Todas las llamadas usan `?.` por eso.
+     */
+    this.recorder = import.meta.env.DEV ? new RunRecorder() : null
+
     // Herramienta de diseño, no del juego: solo existe en desarrollo.
     this.skillLab = import.meta.env.DEV
       ? new SkillLab(this.skills, this.enemies, this.player, this.progression)
@@ -164,6 +172,40 @@ export class GameManager {
     window.addEventListener('keydown', this._unlockAudio)
 
     this._tick = this._tick.bind(this)
+
+    /**
+     * APUNTADO MANUAL: del mouse al mundo.
+     *
+     * InputManager sabe dónde está el puntero en coordenadas de pantalla, pero
+     * no puede convertirlo a una posición del mundo sin la cámara — y no la
+     * tiene a propósito. Esa traducción vive acá, y lo único que cruza hacia
+     * la simulación son dos números (aimX, aimZ). El sistema de armas sigue
+     * sin saber que existe una cámara.
+     *
+     * Los tres objetos se crean una vez: esto corre en cada frame.
+     */
+    this._raycaster = new THREE.Raycaster()
+    this._groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+    this._aimPoint = new THREE.Vector3()
+  }
+
+  /** Deja en `weapons` el punto del suelo bajo el mouse, si el modo es manual. */
+  _updateAim() {
+    const input = this.input
+    const w = this.weapons
+    w.aimActive = input.aimManual && input.pointerSeen
+    if (!w.aimActive) return
+
+    this._raycaster.setFromCamera(input.pointer, this.camera)
+    // Si la cámara mirara al horizonte el rayo no cortaría el suelo. Con la
+    // cámara cenital de este juego no pasa, pero devolver null es gratis y
+    // evita escribir NaN en la posición de apuntado.
+    if (!this._raycaster.ray.intersectPlane(this._groundPlane, this._aimPoint)) {
+      w.aimActive = false
+      return
+    }
+    w.aimX = this._aimPoint.x
+    w.aimZ = this._aimPoint.z
   }
 
   _onKey(e) {
@@ -256,6 +298,7 @@ export class GameManager {
     this.sound.play('UPGRADE_PICK')
     up.apply(this._upgradeContext())
     this.progression.markTaken(up.key)
+    this.recorder?.anotarEleccion(this.progression.level, up.name || up.key)
     this._pendingLevels--
 
     // Si subiste varios niveles de una, se elige uno por vez.
@@ -284,16 +327,23 @@ export class GameManager {
   _settleRun() {
     if (!this._runOpen) return 0
     this._runOpen = false
-    return this.profile.finishRun(
+    const pago = this.profile.finishRun(
       this.waves.elapsed,
       this.enemies.killCount,
       this.boss.defeated,
     )
+    // _lastReward se escribe antes de grabar para que el informe lo incluya:
+    // en el camino de "abandonar" nadie más lo asigna.
+    this._lastReward = pago
+    this.recorder?.terminar(this, this._motivoFin || 'abandono')
+    this._motivoFin = null
+    return pago
   }
 
   /** Cierra la partida por muerte del jugador. */
   _endRun() {
     this.state = GAME_STATE.GAME_OVER
+    this._motivoFin = 'muerte'
     // Los números dejan de actualizarse al salir de PLAYING: si no se limpian,
     // quedan congelados debajo de la pantalla de muerte.
     this.floaters.clear()
@@ -332,6 +382,7 @@ export class GameManager {
     this.hud.hideGameOver()
     this.state = GAME_STATE.PLAYING
     this.events.reset()
+    this.recorder?.iniciar(this)
   }
 
   /**
@@ -468,6 +519,7 @@ export class GameManager {
       this.waves.update(delta, this.player.position)
       this.boss.update(delta)
       this.enemies.update(delta, this.player.position)
+      this._updateAim()
       this.weapons.update(delta)
       this.skills.update(delta, this.time.elapsed)
       this.projectiles.update(delta)
@@ -504,6 +556,7 @@ export class GameManager {
 
       this.floaters.update(delta, this.camera)
       this.hud.update(delta)
+      this.recorder?.muestrear(this, delta)
       // Ni se rellena si el panel está apagado: en producción esto es cero
       // trabajo, no "trabajo barato".
       if (this.monitor.enabled) {

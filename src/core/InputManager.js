@@ -38,6 +38,20 @@ export class InputManager {
     this.joystick = { x: 0, z: 0 }
     this.joystickActive = false
 
+    /**
+     * MODO DE APUNTADO. `false` = automático (el arma elige blanco sola),
+     * `true` = manual (el arma dispara hacia el mouse). Se alterna con ESPACIO.
+     *
+     * El puntero se guarda en coordenadas normalizadas de pantalla (-1..1),
+     * que es lo único que se puede saber sin la cámara. Convertirlo a una
+     * posición del mundo necesita la cámara, y de eso se encarga GameManager:
+     * este archivo sigue sin saber que existe el 3D.
+     */
+    this.aimManual = false
+    this.pointer = { x: 0, y: 0 }
+    /** ¿El mouse se movió alguna vez? Sin esto el primer disparo manual va al centro. */
+    this.pointerSeen = false
+
     /** Resultado normalizado del último getMovementVector(). Reutilizado, no re-creado. */
     this._movement = { x: 0, z: 0 }
 
@@ -55,9 +69,11 @@ export class InputManager {
     this._onKeyDown = this._onKeyDown.bind(this)
     this._onKeyUp = this._onKeyUp.bind(this)
     this._onBlur = this._onBlur.bind(this)
+    this._onPointerMove = this._onPointerMove.bind(this)
 
     window.addEventListener('keydown', this._onKeyDown)
     window.addEventListener('keyup', this._onKeyUp)
+    window.addEventListener('pointermove', this._onPointerMove)
     // Si la ventana pierde el foco con una tecla apretada, el keyup nunca llega
     // y el personaje queda caminando solo para siempre. Bug clásico.
     window.addEventListener('blur', this._onBlur)
@@ -66,11 +82,24 @@ export class InputManager {
   }
 
   _onKeyDown(e) {
+    if (e.code === 'Space') {
+      this.aimManual = !this.aimManual
+      // Sin esto la barra espaciadora también hace scroll de la página.
+      e.preventDefault()
+      return
+    }
+
     const action = this._keyMap[e.code]
     if (action) {
       this.keys[action] = true
       e.preventDefault()
     }
+  }
+
+  _onPointerMove(e) {
+    this.pointer.x = (e.clientX / window.innerWidth) * 2 - 1
+    this.pointer.y = -(e.clientY / window.innerHeight) * 2 + 1
+    this.pointerSeen = true
   }
 
   _onKeyUp(e) {
@@ -161,6 +190,7 @@ export class InputManager {
   dispose() {
     window.removeEventListener('keydown', this._onKeyDown)
     window.removeEventListener('keyup', this._onKeyUp)
+    window.removeEventListener('pointermove', this._onPointerMove)
     window.removeEventListener('blur', this._onBlur)
     if (this.nipple) this.nipple.destroy()
   }

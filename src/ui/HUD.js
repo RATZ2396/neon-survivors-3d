@@ -145,9 +145,14 @@ export class HUD {
     const mm = String(Math.floor(t / 60)).padStart(2, '0')
     const ss = String(Math.floor(t % 60)).padStart(2, '0')
 
+    // El modo de apuntado solo se nombra cuando NO es el de siempre: un
+    // cartel permanente que dice "automático" es ruido, uno que aparece al
+    // cambiar es información.
+    const mira = this.weapons.aimActive ? '   ✛ MANUAL' : ''
+
     this.stats.textContent =
       `${mm}:${ss}   oleada ${this.waves.stageIndex + 1}   ` +
-      `enemigos ${this.enemies.count}   bajas ${this.enemies.killCount}`
+      `enemigos ${this.enemies.count}   bajas ${this.enemies.killCount}${mira}`
   }
 
   /**

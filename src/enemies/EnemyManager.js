@@ -68,6 +68,15 @@ export class EnemyManager {
     this._nextId = 1
     this.killCount = 0
 
+    /**
+     * A dónde fue a parar el daño. Separa lo que le llegó a un blanco
+     * prioritario (el boss) de lo que se comió la horda, que es la única
+     * forma de contestar "¿por qué no le hago nada al boss?" con un número
+     * en vez de con una sensación. Los lee el grabador de partidas.
+     */
+    this.dmgToPriority = 0
+    this.dmgToRest = 0
+
     this.grid = new SpatialGrid(CONFIG.WORLD.ARENA_SIZE, CONFIG.ENEMIES.GRID_CELL, max)
 
     this._initMesh(scene)
@@ -181,10 +190,29 @@ export class EnemyManager {
    * La regla del frame es: todos escriben acá, y resolveDamage() aplica todo
    * junto cuando ya nadie está iterando.
    */
+  /**
+   * Mata todo lo vivo SIN contarlo como daño del jugador.
+   *
+   * El boss limpia la arena al aparecer. Antes lo hacía encolando 1e9 de daño
+   * a cada enemigo con queueDamage(), y ese número entraba en los contadores
+   * de diagnóstico: con siete enemigos en pantalla el informe decía "7000
+   * millones de daño a la horda" y el reparto real quedaba en 0%. Matar por
+   * decreto no es hacer daño, y ahora el código lo distingue.
+   */
+  queueWipe() {
+    for (let i = 0; i < this.count; i++) {
+      if (this._pending[i] === 0) this._pendingCount++
+      this._pending[i] += 1e9
+    }
+  }
+
   queueDamage(i, amount) {
     if (i < 0 || i >= this.count) return
     if (this._pending[i] === 0) this._pendingCount++
     this._pending[i] += amount
+
+    if (ENEMY_DEFS[this.type[i]].priorityTarget) this.dmgToPriority += amount
+    else this.dmgToRest += amount
   }
 
   /**
@@ -255,6 +283,8 @@ export class EnemyManager {
     this.count = 0
     this.mesh.count = 0
     this.killCount = 0
+    this.dmgToPriority = 0
+    this.dmgToRest = 0
   }
 
   /**

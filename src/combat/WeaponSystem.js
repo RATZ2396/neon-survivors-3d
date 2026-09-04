@@ -1,4 +1,5 @@
 import { CONFIG } from '../config/GameConfig.js'
+import { ENEMY_DEFS } from '../config/EnemyDefs.js'
 import { WEAPON_DEFS, WEAPON } from '../config/WeaponDefs.js'
 
 /** Sin perfil cargado, el arma funciona con sus números de tabla. */
@@ -34,6 +35,18 @@ export class WeaponSystem {
     this.shotsFired = 0
 
     /**
+     * APUNTADO MANUAL. GameManager escribe acá el punto del mundo bajo el
+     * mouse cuando el jugador activa el modo con ESPACIO. El sistema de armas
+     * no sabe qué es una cámara: recibe dos números y dispara hacia ahí.
+     */
+    this.aimActive = false
+    this.aimX = 0
+    this.aimZ = 0
+
+    /** Diagnóstico: cuántos disparos apuntaron a un enemigo prioritario. */
+    this.shotsAtPriority = 0
+
+    /**
      * Los inyecta el GameManager. `progression` guarda los multiplicadores de la
      * partida; `profile` los del perfil guardado.
      *
@@ -67,6 +80,8 @@ export class WeaponSystem {
   reset() {
     this.cooldown = 0
     this.shotsFired = 0
+    this.shotsAtPriority = 0
+    this.aimActive = false
   }
 
   /** Daño: permanente × mejoras de la partida. */
@@ -112,36 +127,74 @@ export class WeaponSystem {
    * Se compara distancia AL CUADRADO: la raíz cuadrada no cambia cuál es el
    * mínimo y es la operación más cara del bucle.
    */
+  /**
+   * Elige a quién dispararle.
+   *
+   * ANTES elegía siempre al más cercano, y eso hacía imposible pelear contra
+   * el boss: con basura alrededor el boss nunca es el más cercano. Medido en
+   * el juego antes de este cambio: 0 de 172 disparos le apuntaron, y le llegó
+   * el 0.2% del daño.
+   *
+   * Ahora hay dos ligas. Si algún enemigo PRIORITARIO (el boss, y más adelante
+   * los elites) está a tiro, se elige el más cercano de esos; si no hay
+   * ninguno, el más cercano de todos. Que sea "el más cercano dentro de su
+   * liga" y no "el prioritario esté donde esté" importa: si el boss quedó
+   * lejísimos, seguís limpiando lo que tenés encima.
+   */
   _findTarget(range) {
     const e = this.enemies
     const px = this.player.position.x
     const pz = this.player.position.z
+    const rangeSq = range * range
+
     let best = -1
-    let bestSq = range * range
+    let bestSq = rangeSq
+    let priority = -1
+    let prioritySq = rangeSq
 
     for (let i = 0; i < e.count; i++) {
       const dx = e.posX[i] - px
       const dz = e.posZ[i] - pz
       const dSq = dx * dx + dz * dz
-      if (dSq < bestSq) {
+      if (dSq >= rangeSq) continue
+
+      if (ENEMY_DEFS[e.type[i]].priorityTarget) {
+        if (dSq < prioritySq) {
+          prioritySq = dSq
+          priority = i
+        }
+      } else if (dSq < bestSq) {
         bestSq = dSq
         best = i
       }
     }
 
-    return best
+    return priority !== -1 ? priority : best
   }
 
   _fire() {
     const def = this.def
-    const target = this._findTarget(this.range)
-    if (target === -1) return false
-
     const e = this.enemies
     const px = this.player.position.x
     const pz = this.player.position.z
-    const dx = e.posX[target] - px
-    const dz = e.posZ[target] - pz
+
+    let dx
+    let dz
+    let target = -1
+
+    if (this.aimActive) {
+      // Manual: se dispara hacia el mouse, haya o no algo ahí. Poder tirarle a
+      // la nada es parte del trato — el jugador tomó el control.
+      dx = this.aimX - px
+      dz = this.aimZ - pz
+    } else {
+      target = this._findTarget(this.range)
+      if (target === -1) return false
+      dx = e.posX[target] - px
+      dz = e.posZ[target] - pz
+      if (ENEMY_DEFS[e.type[target]].priorityTarget) this.shotsAtPriority++
+    }
+
     const dist = Math.sqrt(dx * dx + dz * dz)
     if (dist < 0.0001) return false
 

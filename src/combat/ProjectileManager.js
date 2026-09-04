@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config/GameConfig.js'
+import { ENEMY_DEFS } from '../config/EnemyDefs.js'
 
 const _dummy = new THREE.Object3D()
 const _color = new THREE.Color()
@@ -156,6 +157,18 @@ export class ProjectileManager {
 
       if (this.explodeRadius[i] > 0) {
         this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit)
+        this._remove(i)
+        continue
+      }
+
+      // ── QUIÉN FRENA UNA BALA ────────────────────────────────────────
+      // Antes la frenaba cualquiera, y con la horda encima eso hacía que al
+      // boss no le llegara nada: medido, el 0.2% del daño. Ahora un enemigo
+      // marcado con `blocksShots` (boss y tanque) la frena SIEMPRE, sin
+      // importar cuánta penetración le quede; el resto solo le gasta una
+      // carga. El tope de penetración es lo que impide que una bala barra
+      // una fila entera y convierta la horda en un trámite.
+      if (ENEMY_DEFS[e.type[hit]].blocksShots) {
         this._remove(i)
         continue
       }

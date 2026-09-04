@@ -111,7 +111,7 @@ export class BossController {
     // "Limpia la arena" (GDD_v2 §4 Parte F): la basura muere, pero suelta sus
     // gemas. El duelo empieza limpio y el jugador cobra lo que ya se había
     // ganado, en vez de que se le evapore en pantalla.
-    for (let i = 0; i < this.enemies.count; i++) this.enemies.queueDamage(i, 1e9)
+    this.enemies.queueWipe()
 
     // Aparece lejos, para que se lo vea venir.
     const angle = Math.random() * Math.PI * 2
