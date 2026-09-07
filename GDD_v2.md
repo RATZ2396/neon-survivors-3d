@@ -1,4 +1,4 @@
-# 🎮 GDD v2.0 — Neon Survivors 3D (rediseño técnico)
+# 🎮 GDD v2.0 — RTZBLOOD (rediseño técnico)
 
 **Basado en:** la v1.0 (`GDD.md`) y el código real de este repo, auditado línea por línea antes de escribir este documento.
 **Objetivo de este documento:** no es solo describir el juego — es dividir el rediseño en partes independientes con interfaces claras, para que cada una se pueda asignar como una tarea separada sin que una pise el trabajo de otra.

@@ -2,8 +2,21 @@ import { CONFIG } from '../config/GameConfig.js'
 import { WEAPON_DEFS } from '../config/WeaponDefs.js'
 import { META_TREES, costOfLevel, modifiersFor } from '../config/MetaDefs.js'
 
-/** Cambiar esta clave descarta perfiles viejos en vez de leerlos mal. */
-const STORAGE_KEY = 'neon-survivors.profile.v1'
+/** Dónde vive el perfil. Cambiarla sin más descartaría los perfiles viejos. */
+const STORAGE_KEY = 'rtzblood.profile.v1'
+
+/**
+ * La clave que usaba el juego cuando se llamaba Neon Survivors.
+ *
+ * Renombrar sin esto le borraba la partida a todo el que ya hubiera
+ * jugado: la moneda, las armas mejoradas y el mejor tiempo viven en
+ * `localStorage`, y una clave nueva es un perfil vacío. Se lee una sola
+ * vez, al no encontrar la nueva, y desde ahí en adelante ya no hace falta.
+ *
+ * Se puede borrar esta línea (y su uso más abajo) cuando el juego lleve un
+ * tiempo publicado: solo le sirve a los perfiles anteriores al cambio.
+ */
+const CLAVE_VIEJA = 'neon-survivors.profile.v1'
 
 /**
  * PlayerProfile — lo único del juego que sobrevive a cerrar el navegador.
@@ -41,8 +54,14 @@ export class PlayerProfile {
     if (!this.storage) return
 
     let raw
+    let mudado = false
     try {
       raw = this.storage.getItem(STORAGE_KEY)
+      // Sin perfil nuevo, se busca el del nombre viejo. Ver CLAVE_VIEJA.
+      if (!raw) {
+        raw = this.storage.getItem(CLAVE_VIEJA)
+        mudado = !!raw
+      }
     } catch {
       return // modo privado o almacenamiento bloqueado: se juega sin perfil
     }
@@ -73,6 +92,10 @@ export class PlayerProfile {
         if (n > 0) this.upgrades[def.key][t.key] = Math.min(Math.floor(n), t.max)
       }
     }
+
+    // Se reescribe ya bajo el nombre nuevo: si no, cada arranque volvería a
+    // leer el viejo y la mudanza no terminaría nunca.
+    if (mudado) this.save()
   }
 
   _num(v, fallback) {
@@ -104,6 +127,9 @@ export class PlayerProfile {
     this._fresh()
     try {
       this.storage?.removeItem(STORAGE_KEY)
+      // También el del nombre viejo: si no, "Borrar perfil" lo dejaría ahí y
+      // el siguiente arranque lo resucitaría por la mudanza.
+      this.storage?.removeItem(CLAVE_VIEJA)
     } catch {
       /* nada que hacer */
     }

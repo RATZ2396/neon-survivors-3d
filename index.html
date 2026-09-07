@@ -4,10 +4,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Neon Survivors 3D</title>
+  <title>RTZBLOOD</title>
   <!-- SVG embebido: un archivo menos que subir y un pedido menos que hacer.
        Sin esto el navegador pide /favicon.ico y se come un 404 en cada carga. -->
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230d1117'/><path d='M16 4l10 12-10 12L6 16z' fill='%2339d0ff'/></svg>" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230d1117'/><path d='M16 4l10 12-10 12L6 16z' fill='%23ff4d6d'/></svg>" />
   <style>
     * {
       margin: 0;
@@ -277,12 +277,6 @@
          compra del taller a 392 y 388. Quedaban fuera de la pantalla y no
          se podían tocar. */
 
-      /* El título se cortaba: 14 letras a 34px con 8px de separación no
-         entran en 375. */
-      .smenu h1 {
-        font-size: clamp(20px, 7vw, 34px);
-        letter-spacing: clamp(2px, 1.4vw, 8px);
-      }
 
       .shead {
         flex-wrap: wrap;
@@ -340,11 +334,6 @@
       text-align: center;
     }
 
-    .smenu h1 {
-      font-size: 34px;
-      letter-spacing: 8px;
-      color: #39d0ff;
-    }
 
     .ssub {
       margin: 10px 0 26px;
@@ -1115,9 +1104,32 @@
       pointer-events: none;
     }
 
+    /* ── EL NOMBRE ──────────────────────────────────────────────────────
+
+       Una sola regla para los dos lugares donde aparece (la pantalla de
+       carga y el menú de inicio), para que no se puedan ir separando.
+
+       Parte en dos mitades a propósito: RTZ es la firma y BLOOD es el
+       juego. El rojo no es un color nuevo — es el mismo #ff4d6d que ya
+       usan los enemigos y la barra de vida en peligro, así que el título
+       nombra lo que vas a ver, en vez de traer una paleta de otro lado. */
+    .logo {
+      font-weight: 700;
+      color: #cfe6f5;
+      font-size: clamp(30px, 9vw, 58px);
+      letter-spacing: clamp(1px, 0.7vw, 4px);
+      line-height: 1;
+    }
+
+    .logo b {
+      color: #ff4d6d;
+      /* El resplandor va solo en la mitad roja: en las dos, el título se
+         empasta y deja de leerse de un vistazo. */
+      text-shadow: 0 0 22px rgba(255, 77, 109, 0.55);
+    }
+
     #loader .lgo {
-      font-size: clamp(18px, 6vw, 34px);
-      letter-spacing: clamp(3px, 1.6vw, 8px);
+      font-size: clamp(24px, 8vw, 44px);
     }
 
     #loader .lbar {
@@ -1249,7 +1261,7 @@
 <body>
   <!-- Se borra sola cuando hay un frame dibujado. Ver src/main.js. -->
   <div id="loader">
-    <div class="lgo">NEON SURVIVORS</div>
+    <div class="lgo logo">RTZ<b>BLOOD</b></div>
     <div class="lbar"><i></i></div>
     <div class="ltxt">cargando</div>
   </div>

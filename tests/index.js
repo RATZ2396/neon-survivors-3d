@@ -28,20 +28,25 @@ import { WeaponSystem } from '../src/combat/WeaponSystem.js'
 /** Escena de mentira: los sistemas solo le piden add(). */
 const escena = { add() {} }
 
-/** localStorage de mentira, para no depender de un navegador. */
-function almacenFalso(inicial = null) {
-  let v = inicial
+/**
+ * localStorage de mentira, para no depender de un navegador.
+ *
+ * Guarda POR CLAVE y no un solo valor. Empezó guardando uno solo, que alcanzaba
+ * mientras el juego usaba una sola clave; al renombrarse hizo falta que
+ * conviviera la vieja con la nueva, y un almacén de un solo casillero no puede
+ * probar una mudanza.
+ */
+function almacenFalso(inicial = null, clave = 'rtzblood.profile.v1') {
+  const datos = new Map()
+  if (inicial !== null) datos.set(clave, inicial)
   return {
-    getItem: () => v,
-    setItem: (_k, x) => {
-      v = x
-    },
-    removeItem: () => {
-      v = null
-    },
+    getItem: (k) => (datos.has(k) ? datos.get(k) : null),
+    setItem: (k, x) => datos.set(k, x),
+    removeItem: (k) => datos.delete(k),
     get raw() {
-      return v
+      return datos.get('rtzblood.profile.v1') ?? null
     },
+    claves: () => [...datos.keys()],
   }
 }
 
@@ -1503,6 +1508,58 @@ describe('Recolección', () => {
     // De lejos y chiquitas, la forma se lee antes que el color.
     const formas = new Set(PICKUP_DEFS.map((d) => d.shape))
     expect(formas.size).toBe(PICKUP_DEFS.length)
+  })
+})
+
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Mudanza del perfil al renombrar el juego', () => {
+  const VIEJA = 'neon-survivors.profile.v1'
+  const NUEVA = 'rtzblood.profile.v1'
+  const perfilViejo = JSON.stringify({
+    currency: 1826,
+    weapon: 'SHOTGUN',
+    runs: 8,
+    bestSeconds: 143.5,
+    upgrades: { SHOTGUN: { COUNT: 2 } },
+  })
+
+  test('un perfil con el nombre viejo no se pierde', () => {
+    // Es lo único que el renombre podía romper de verdad: la moneda y las
+    // armas mejoradas de alguien que ya venía jugando.
+    const store = almacenFalso(perfilViejo, VIEJA)
+    const p = new PlayerProfile(store)
+
+    expect(p.currency).toBe(1826)
+    expect(p.weapon).toBe('SHOTGUN')
+    expect(p.runs).toBe(8)
+    expect(p.upgrades.SHOTGUN.COUNT).toBe(2)
+  })
+
+  test('y queda reescrito bajo el nombre nuevo', () => {
+    // Si no, cada arranque volvería a leer el viejo y la mudanza no terminaría.
+    const store = almacenFalso(perfilViejo, VIEJA)
+    new PlayerProfile(store)
+    expect(JSON.parse(store.getItem(NUEVA)).currency).toBe(1826)
+  })
+
+  test('si existen las dos, gana la nueva', () => {
+    const store = almacenFalso()
+    store.setItem(VIEJA, JSON.stringify({ currency: 999 }))
+    store.setItem(NUEVA, JSON.stringify({ currency: 50 }))
+    expect(new PlayerProfile(store).currency).toBe(50)
+  })
+
+  test('borrar el perfil se lleva las dos claves', () => {
+    // Si quedara la vieja, el arranque siguiente la resucitaría por la mudanza
+    // y el botón "Borrar perfil" sería mentira.
+    const store = almacenFalso(perfilViejo, VIEJA)
+    const p = new PlayerProfile(store)
+    p.wipe()
+
+    expect(store.getItem(VIEJA)).toBe(null)
+    expect(store.getItem(NUEVA)).toBe(null)
+    expect(new PlayerProfile(store).currency).toBe(0)
   })
 })
 

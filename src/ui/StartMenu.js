@@ -46,7 +46,7 @@ export class StartMenu {
     this.el.innerHTML = `
       <div class="smenu">
         <div class="shead">
-          <h1>NEON SURVIVORS</h1>
+          <h1 class="logo">RTZ<b>BLOOD</b></h1>
           <span class="scoin"><i></i><b data-coin>0</b></span>
           <button class="ssound" data-act="mute" title="Silencio (M)"></button>
         </div>

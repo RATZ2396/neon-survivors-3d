@@ -1,6 +1,7 @@
-# Neon Survivors 3D — v2
+# RTZBLOOD
 
-Reconstrucción del prototipo siguiendo [`GDD_v2.md`](./GDD_v2.md).
+Survivor de hordas en 3D, hecho para la web. Se jugaba como **Neon
+Survivors 3D** hasta que tomó su nombre definitivo.
 
 ## Cómo correrlo
 
@@ -63,7 +64,9 @@ La pantalla de inicio es también el taller. Ahí se ve la moneda acumulada y el
 | Escopeta | daño · cadencia · **carga ampliada** (+1 perdigón, hasta 3) · alcance (caro: es su punto débil) |
 | Metralleta | **cadencia** (5 niveles) · daño · alcance |
 
-La moneda es lo único que sobrevive a la muerte. **Sale del piso**: cada enemigo suelta una al morir y hay que ir a juntarla, igual que la gema de XP. Al terminar se cobra `tiempo × 1.2 + moneda juntada`, con un piso de 5. Todo se guarda en `localStorage` bajo `neon-survivors.profile.v1`.
+La moneda es lo único que sobrevive a la muerte. **Sale del piso**: cada enemigo suelta una al morir y hay que ir a juntarla, igual que la gema de XP. Al terminar se cobra `tiempo × 1.2 + moneda juntada`, con un piso de 5. Todo se guarda en `localStorage` bajo `rtzblood.profile.v1`. Al renombrar el
+juego se dejó una mudanza: si no hay perfil nuevo se lee el de la clave
+vieja y se reescribe bajo la nueva, así nadie pierde la moneda que ya tenía.
 
 Antes la fórmula pagaba `bajas × 0.6 + bosses × 60` al terminar: plata que llegaba sola por matar. Ahora matar deja algo **en el lugar donde estaba el peligro**, y lo que dejás tirado no se cobra. El tiempo sobrevivido es lo único que se sigue pagando sin juntarlo.
 
@@ -172,7 +175,7 @@ src/
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 ├── config/VfxDefs.js             las 7 explosiones de partículas
 ├── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
-└── tests/                        `npm test` — 137 tests, sin dependencias
+└── tests/                        `npm test` — 141 tests, sin dependencias
 ```
 
 `HUD.js` y `PerformanceMonitor.js` están separados a propósito y no comparten datos: uno es información del **juego**, el otro es **diagnóstico**. En la versión anterior estaban mezclados en overlays superpuestos y no se distinguía cuál era cuál.
@@ -467,9 +470,9 @@ No se escribió un `ObjectPool` genérico como sugería el GDD. Cada sistema tie
 npm test
 ```
 
-**137 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
+**141 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
 
-Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · filtro de habilidades por arma · modificadores del arma · **recolección (gema, moneda, corazón, imán)** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
+Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · filtro de habilidades por arma · modificadores del arma · recolección (gema, moneda, corazón, imán) · **mudanza del perfil al renombrar** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
 
 Tres merecen mención porque **defienden bugs que ya ocurrieron**:
 

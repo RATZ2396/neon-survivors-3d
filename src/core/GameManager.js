@@ -31,7 +31,7 @@ import { rollUpgrades } from '../config/UpgradeDefs.js'
 import { PerformanceMonitor } from '../perf/PerformanceMonitor.js'
 import { RunRecorder } from '../dev/RunRecorder.js'
 
-export const GAME_STATE = {
+const GAME_STATE = {
   MENU: 'MENU',
   PLAYING: 'PLAYING',
   PAUSED: 'PAUSED',

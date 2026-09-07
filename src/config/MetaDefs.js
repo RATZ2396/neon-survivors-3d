@@ -15,7 +15,7 @@
  * es tocar código; agregar un nivel, una rama o un arma entera es tocar solo
  * esta tabla.
  */
-export const MOD = {
+const MOD = {
   /** Multiplica el daño de cada impacto. */
   DAMAGE: 'DAMAGE',
   /** Multiplica la recarga. Menor = dispara más seguido. */

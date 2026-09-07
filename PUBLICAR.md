@@ -1,4 +1,4 @@
-# Publicar
+# Publicar RTZBLOOD
 
 Lo que falta para que esto deje de ser un proyecto y empiece a generar algo.
 Está acá y no en el README porque el README documenta el juego; esto es el
@@ -86,7 +86,7 @@ en vez de ingresos por publicidad. No es un reemplazo de esto.
 | Límite CrazyGames | 250 MB totales · 50 MB primer jugable · 20 MB para home móvil |
 | Límite Poki | 8 MB de descarga inicial, y es por invitación |
 | FPS en pantalla de teléfono | 60, con la horda encima |
-| Tests | 137, todos pasan |
+| Tests | 141, todos pasan |
 | Assets de terceros | **ninguno** — geometría procedural y los 16 sonidos sintetizados |
 
 Ese último renglón vale más de lo que parece: **cero riesgo de licencias**, y los
