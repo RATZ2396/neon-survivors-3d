@@ -86,6 +86,19 @@ export class SoundManager {
     if (this.ctx && this.ctx.state === 'running') this.ctx.suspend()
   }
 
+  /**
+   * Volumen maestro, 0..1.
+   *
+   * NO toca `muted`, y esa separación importa: si bajar el volumen a cero
+   * silenciara, subirlo de vuelta tendría que acordarse de des-silenciar, y
+   * el jugador que además apretó M se quedaría mudo sin entender por qué.
+   * Son dos controles distintos y el mezclador los aplica en cascada.
+   */
+  setVolume(v) {
+    this.volume = Math.min(1, Math.max(0, v))
+    if (this.master && !this.muted) this.master.gain.value = this.volume
+  }
+
   setMuted(muted) {
     this.muted = muted
     if (this.master) this.master.gain.value = muted ? 0 : this.volume

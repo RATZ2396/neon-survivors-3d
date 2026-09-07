@@ -30,6 +30,8 @@ export class StartMenu {
     this.selected = profile.weapon
     /** Lo inyecta el GameManager. El menú no crea audio, solo lo usa. */
     this.sound = null
+    /** Abre el panel de ajustes. Lo engancha el GameManager. */
+    this.onOptions = null
 
     this.el = document.createElement('div')
     this.el.id = 'start-menu'
@@ -49,6 +51,7 @@ export class StartMenu {
           <h1 class="logo">RTZ<b>BLOOD</b></h1>
           <span class="scoin"><i></i><b data-coin>0</b></span>
           <button class="ssound" data-act="mute" title="Silencio (M)"></button>
+          <button class="ssound" data-act="options">AJUSTES</button>
         </div>
         <p class="ssub">Elegí tu arma — define toda la partida. Las habilidades se eligen adentro, al subir de nivel.</p>
         <div class="scards" data-cards></div>
@@ -76,8 +79,8 @@ export class StartMenu {
       if (act === 'play') this._start()
       else if (act === 'pick') this._select(el.dataset.key)
       else if (act === 'buy') this._buy(el.dataset.track)
-      else if (act === 'wipe') this._wipe()
       else if (act === 'mute') this._toggleMute()
+      else if (act === 'options') this.onOptions?.()
     })
   }
 
@@ -127,11 +130,15 @@ export class StartMenu {
     this.soundBtn.classList.toggle('off', off)
   }
 
-  _wipe() {
-    if (!confirm('¿Borrar el perfil? Se pierden la moneda y todas las mejoras compradas.')) return
-    this.profile.wipe()
-    this.selected = this.profile.weapon
-    this._render()
+  /**
+   * Redibuja si está a la vista.
+   *
+   * Lo llama el GameManager después de borrar el perfil, que ahora se hace
+   * desde el panel de ajustes: la moneda y las mejoras que muestra esta
+   * pantalla acaban de cambiar y nadie más se lo iba a avisar.
+   */
+  refresh() {
+    if (this.visible) this._render()
   }
 
   _onKey(e) {
@@ -213,7 +220,7 @@ export class StartMenu {
       ${rows}
       <div class="sprofile">
         <span>${this.profile.runs} partidas · mejor ${this._tiempo(this.profile.bestSeconds)}</span>
-        <button class="twipe" data-act="wipe">Borrar perfil</button>
+        <span>Volumen, calidad y controles están en AJUSTES</span>
       </div>
     `
   }

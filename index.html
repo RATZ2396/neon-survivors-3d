@@ -595,20 +595,6 @@
       color: #566d80;
     }
 
-    .twipe {
-      padding: 4px 10px;
-      border: 1px solid rgba(255, 77, 109, 0.3);
-      border-radius: 6px;
-      background: none;
-      color: #ff4d6d;
-      font: inherit;
-      font-size: 11px;
-      cursor: pointer;
-    }
-
-    .twipe:hover {
-      background: rgba(255, 77, 109, 0.12);
-    }
 
     .sfoot {
       margin-top: 20px;
@@ -700,6 +686,234 @@
       margin-top: 18px;
       font-size: 11px;
       color: #566d80;
+    }
+
+    /* ── Ajustes y controles ────────────────────────────────────────────
+
+       Por encima de todos los demás menús (200-400) porque se abre DESDE
+       ellos: si quedara por debajo, abrirlo desde la pausa lo dejaría
+       tapado por la pausa. */
+    #options-menu[hidden] {
+      display: none !important;
+    }
+
+    #options-menu {
+      position: fixed;
+      inset: 0;
+      z-index: 450;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 4vh 0 8vh;
+      overflow-y: auto;
+      background: rgba(13, 17, 23, 0.97);
+      color: #cfe6f5;
+    }
+
+    .omenu {
+      width: min(560px, 92vw);
+    }
+
+    .ohead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 16px;
+    }
+
+    .ohead h2 {
+      font-size: 20px;
+      letter-spacing: 8px;
+      color: #39d0ff;
+    }
+
+    /* 44px de alto en todo lo que se toca: el mínimo que acierta un dedo. */
+    .oclose {
+      min-height: 44px;
+      padding: 10px 20px;
+      border: 1px solid rgba(127, 155, 176, 0.35);
+      border-radius: 8px;
+      background: rgba(22, 28, 37, 0.95);
+      color: #cfe6f5;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .oclose:hover {
+      border-color: #39d0ff;
+    }
+
+    .otabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+
+    .otabs button {
+      flex: 1;
+      min-height: 44px;
+      border: 1px solid rgba(127, 155, 176, 0.22);
+      border-radius: 8px;
+      background: none;
+      color: #7f9bb0;
+      font: inherit;
+      font-size: 12px;
+      letter-spacing: 1px;
+      cursor: pointer;
+    }
+
+    .otabs button.on {
+      border-color: #39d0ff;
+      background: rgba(57, 208, 255, 0.1);
+      color: #cfe6f5;
+    }
+
+    .ogroup {
+      margin: 20px 2px 8px;
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #566d80;
+    }
+
+    .orow {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 12px;
+      border: 1px solid rgba(127, 155, 176, 0.18);
+      border-radius: 8px;
+      background: rgba(17, 22, 30, 0.9);
+      text-align: left;
+    }
+
+    .orow + .orow {
+      margin-top: 6px;
+    }
+
+    .oname {
+      font-size: 13px;
+    }
+
+    .octl {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .octl input[type='range'] {
+      width: min(190px, 42vw);
+      accent-color: #39d0ff;
+    }
+
+    .oval {
+      min-width: 42px;
+      text-align: right;
+      font-size: 12px;
+      color: #7f9bb0;
+    }
+
+    .oseg {
+      display: flex;
+      gap: 4px;
+    }
+
+    .oseg button {
+      min-height: 40px;
+      padding: 8px 13px;
+      border: 1px solid rgba(127, 155, 176, 0.28);
+      border-radius: 6px;
+      background: none;
+      color: #7f9bb0;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .oseg button.on {
+      border-color: #39d0ff;
+      background: rgba(57, 208, 255, 0.14);
+      color: #cfe6f5;
+    }
+
+    .odanger {
+      min-height: 40px;
+      padding: 8px 18px;
+      border: 1px solid rgba(255, 77, 109, 0.35);
+      border-radius: 6px;
+      background: none;
+      color: #ff4d6d;
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+
+    .odanger:hover {
+      background: rgba(255, 77, 109, 0.12);
+    }
+
+    .onota {
+      margin: 6px 4px 0;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #566d80;
+    }
+
+    /* Controles: el encabezado y las filas comparten la misma rejilla, así
+       las columnas quedan alineadas sin repetir medidas. */
+    .ocols,
+    .ocontrol {
+      display: grid;
+      grid-template-columns: 1fr 1.15fr 1.15fr;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .ocols {
+      margin: 16px 14px 8px;
+      font-size: 10px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #566d80;
+    }
+
+    .okey {
+      font-size: 12px;
+      color: #7f9bb0;
+    }
+
+    /* La etiqueta de cada columna solo hace falta cuando la tabla se apila. */
+    .okey i {
+      display: none;
+    }
+
+    /* Tres columnas de texto no entran en un teléfono: se apilan, y cada
+       valor se lleva puesto el nombre de su columna. */
+    @media (max-width: 560px) {
+      .ocols {
+        display: none;
+      }
+
+      .ocontrol {
+        grid-template-columns: 1fr;
+        gap: 4px;
+      }
+
+      .ocontrol .oname {
+        margin-bottom: 2px;
+        color: #cfe6f5;
+      }
+
+      .okey i {
+        display: block;
+        font-size: 9px;
+        font-style: normal;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+        color: #566d80;
+      }
     }
 
     /* ── Números flotantes ──────────────────────────────────────────────── */

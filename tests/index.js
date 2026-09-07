@@ -1563,4 +1563,82 @@ describe('Mudanza del perfil al renombrar el juego', () => {
   })
 })
 
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Ajustes', () => {
+  test('un perfil nuevo trae los ajustes de fábrica', () => {
+    const p = new PlayerProfile(almacenFalso())
+    expect(p.volume).toBe(0.9)
+    expect(p.bloom).toBe(CONFIG.VFX.BLOOM)
+    expect(p.quality).toBe('high')
+    expect(p.aimManual).toBe(false)
+  })
+
+  test('se guardan y vuelven tal cual', () => {
+    const store = almacenFalso()
+    const p = new PlayerProfile(store)
+    p.volume = 0.35
+    p.bloom = false
+    p.quality = 'low'
+    p.aimManual = true
+    p.save()
+
+    const otro = new PlayerProfile(store)
+    expect(otro.volume).toBe(0.35)
+    expect(otro.bloom).toBe(false)
+    expect(otro.quality).toBe('low')
+    expect(otro.aimManual).toBe(true)
+  })
+
+  test('un volumen fuera de rango se recorta, no se descarta', () => {
+    // Lo que vuelve de localStorage lo pudo escribir cualquiera con la
+    // consola abierta. Un 8 acá sería un golpe de audio a todo lo que da.
+    const alto = new PlayerProfile(almacenFalso(JSON.stringify({ volume: 8 })))
+    expect(alto.volume).toBe(1)
+
+    const bajo = new PlayerProfile(almacenFalso(JSON.stringify({ volume: -3 })))
+    expect(bajo.volume).toBe(0)
+  })
+
+  test('una calidad inventada no entra', () => {
+    const p = new PlayerProfile(almacenFalso(JSON.stringify({ quality: 'ultra' })))
+    expect(p.quality).toBe('high')
+  })
+
+  test('borrar el perfil devuelve los ajustes a fábrica', () => {
+    // El botón promete dejar el juego como recién abierto. Un volumen al 10%
+    // sobreviviendo al borrado haría pensar que el sonido está roto.
+    const store = almacenFalso()
+    const p = new PlayerProfile(store)
+    p.volume = 0.1
+    p.quality = 'low'
+    p.save()
+    p.wipe()
+
+    expect(p.volume).toBe(0.9)
+    expect(p.quality).toBe('high')
+  })
+
+  test('el volumen y el silencio son dos cosas distintas', () => {
+    // Si bajar el volumen silenciara, subirlo tendría que acordarse de
+    // des-silenciar — y el que además apretó M se quedaría mudo sin saber
+    // por qué. El mezclador los aplica en cascada, no mezclados.
+    const s = new SoundManager()
+    s.master = { gain: { value: 0 } } // mezclador de mentira: no hace falta WebAudio
+
+    s.setVolume(0.5)
+    expect(s.master.gain.value).toBe(0.5)
+
+    s.setMuted(true)
+    expect(s.master.gain.value).toBe(0)
+
+    // Mover el volumen mientras está silenciado NO devuelve el sonido...
+    s.setVolume(0.8)
+    expect(s.master.gain.value).toBe(0)
+
+    // ...pero al des-silenciar aparece el volumen nuevo, no el viejo.
+    s.setMuted(false)
+    expect(s.master.gain.value).toBe(0.8)
+  })
+})
+
 process.exit(resumen() > 0 ? 1 : 0)

@@ -47,6 +47,20 @@ export class PlayerProfile {
     this.bestSeconds = 0
     /** Silencio. Es preferencia del jugador, así que vive con el perfil. */
     this.muted = false
+
+    /**
+     * AJUSTES.
+     *
+     * Viven acá por la misma razón que el silencio: son preferencias del
+     * jugador, no estado de la partida. Y por eso "Borrar perfil" también
+     * los devuelve a fábrica — ese botón promete dejar el juego como recién
+     * abierto, y un ajuste que sobreviviera al borrado rompería la promesa.
+     */
+    this.volume = 0.9
+    this.bloom = CONFIG.VFX.BLOOM
+    /** 'high' | 'low'. Techo de densidad de píxeles; ver CONFIG.VFX. */
+    this.quality = 'high'
+    this.aimManual = false
   }
 
   load() {
@@ -80,6 +94,15 @@ export class PlayerProfile {
     this.bestSeconds = this._num(data.bestSeconds, 0)
     if (typeof data.weapon === 'string' && META_TREES[data.weapon]) this.weapon = data.weapon
     if (typeof data.muted === 'boolean') this.muted = data.muted
+    if (typeof data.bloom === 'boolean') this.bloom = data.bloom
+    if (typeof data.aimManual === 'boolean') this.aimManual = data.aimManual
+    if (data.quality === 'high' || data.quality === 'low') this.quality = data.quality
+    // El volumen es el único ajuste con rango, y el único que puede hacer
+    // daño si viene mal: un 8 guardado a mano desde la consola sería un
+    // golpe de audio a todo lo que da. Se recorta, no se descarta.
+    if (typeof data.volume === 'number' && Number.isFinite(data.volume)) {
+      this.volume = Math.min(1, Math.max(0, data.volume))
+    }
 
     // Solo se aceptan ramas que existen hoy y niveles dentro del máximo actual.
     // Así, bajar el máximo de una rama en la tabla no deja perfiles imposibles.
@@ -114,6 +137,10 @@ export class PlayerProfile {
           runs: this.runs,
           bestSeconds: this.bestSeconds,
           muted: this.muted,
+          volume: this.volume,
+          bloom: this.bloom,
+          quality: this.quality,
+          aimManual: this.aimManual,
         }),
       )
     } catch {

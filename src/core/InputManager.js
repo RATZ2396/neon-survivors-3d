@@ -48,6 +48,14 @@ export class InputManager {
      * este archivo sigue sin saber que existe el 3D.
      */
     this.aimManual = false
+    /**
+     * Aviso de que el apuntado cambió con la tecla.
+     *
+     * Lo engancha el GameManager para guardarlo en el perfil y refrescar el
+     * panel de ajustes. Sin esto habría dos verdades sobre el mismo dato: la
+     * que muestra el menú y la que usa el arma.
+     */
+    this.onAimChange = null
     this.pointer = { x: 0, y: 0 }
     /** ¿El mouse se movió alguna vez? Sin esto el primer disparo manual va al centro. */
     this.pointerSeen = false
@@ -84,6 +92,7 @@ export class InputManager {
   _onKeyDown(e) {
     if (e.code === 'Space') {
       this.aimManual = !this.aimManual
+      this.onAimChange?.(this.aimManual)
       // Sin esto la barra espaciadora también hace scroll de la página.
       e.preventDefault()
       return

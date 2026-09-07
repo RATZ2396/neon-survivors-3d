@@ -25,6 +25,7 @@ import { ParticleSystem } from '../vfx/ParticleSystem.js'
 import { GameVfx } from '../vfx/GameVfx.js'
 import { PostFX } from '../vfx/PostFX.js'
 import { PauseMenu } from '../ui/PauseMenu.js'
+import { OptionsMenu } from '../ui/OptionsMenu.js'
 import { FloatingText } from '../ui/FloatingText.js'
 import { SkillLab } from '../ui/SkillLab.js'
 import { rollUpgrades } from '../config/UpgradeDefs.js'
@@ -120,8 +121,9 @@ export class GameManager {
     // Audio. El contexto todavía NO existe: los navegadores lo bloquean hasta
     // que hay un gesto del usuario, así que se crea en el primer clic o tecla.
     this.sound = new SoundManager()
-    this.sound.setMuted(this.profile.muted)
     this.startMenu.sound = this.sound
+    // El volumen y el silencio guardados se aplican más abajo, junto con el
+    // resto de los ajustes: un solo camino de ida (ver _applySettings).
 
     // Los hechos del frame se deducen UNA vez y los leen los dos consumidores.
     // Si cada uno dedujera lo suyo, el chispazo y el sonido del mismo impacto
@@ -139,11 +141,51 @@ export class GameManager {
     this.vfx = new GameVfx(this.particles, sistemas)
     this.postfx = new PostFX(this.renderer, this.scene, this.camera)
     this.floaters = new FloatingText()
+
+    /**
+     * Ajustes y controles.
+     *
+     * El panel no sabe aplicar nada: lee del perfil y avisa qué se tocó.
+     * Acá abajo está el ÚNICO camino por el que un ajuste llega a un
+     * sistema, y por eso el panel no puede desincronizarse del juego.
+     */
+    this.options = new OptionsMenu({
+      leer: () => ({
+        volume: this.profile.volume,
+        muted: this.profile.muted,
+        bloom: this.profile.bloom,
+        quality: this.profile.quality,
+        aimManual: this.profile.aimManual,
+      }),
+      cambiar: (clave, valor) => this._cambiarAjuste(clave, valor),
+      onWipe: () => this._wipeProfile(),
+      onClose: () => this.options.hide(),
+    })
+
     this.pauseMenu = new PauseMenu({
       onResume: () => this.resume(),
       onQuit: () => this.toMenu(),
       onToggleSound: () => this._toggleSound(),
+      onOptions: () => this.options.show(),
     })
+
+    // Los dos únicos lugares desde donde se abre: antes de jugar y en pausa.
+    // Es la misma pantalla a propósito — un ajuste que solo existe en un
+    // sitio es un ajuste que la mitad de los jugadores no encuentra.
+    this.startMenu.onOptions = () => this.options.show()
+
+    // Espacio alterna el apuntado sin pasar por el panel. Si el perfil no se
+    // enterara, el ajuste se olvidaría al recargar y el menú mostraría lo
+    // contrario de lo que hace el arma.
+    this.input.onAimChange = (manual) => {
+      this.profile.aimManual = manual
+      this.profile.save()
+      this.options.render()
+    }
+
+    // Lo guardado se aplica ANTES del primer frame: si no, el que dejó el
+    // juego en calidad baja lo vuelve a abrir en alta y se come el tirón.
+    this._applySettings()
 
     this.hud = new HUD(
       this.player,
@@ -246,6 +288,15 @@ export class GameManager {
   }
 
   _onKey(e) {
+    // Con los ajustes abiertos mandan los ajustes: Escape cierra el panel en
+    // lugar de pausar o despausar, que cambiaría el estado de la partida sin
+    // que nadie lo haya pedido.
+    if (this.options.visible) {
+      if (e.code === 'Escape') this.options.hide()
+      else if (e.code === 'KeyM') this._toggleSound()
+      return
+    }
+
     // Silencio: funciona en cualquier estado, como en cualquier otro juego.
     if (e.code === 'KeyM') {
       this._toggleSound()
@@ -293,6 +344,89 @@ export class GameManager {
     this.profile.save()
     this.startMenu.refreshSound()
     this.pauseMenu.refreshSound(this.profile.muted)
+    // El panel de ajustes muestra el mismo dato: si está abierto, mentiría.
+    this.options.render()
+  }
+
+  /**
+   * Vuelca al juego TODO lo que dice el perfil. Se llama al arrancar y
+   * después de borrar el perfil.
+   *
+   * Usa `setEnabled` y no `setEnabledByUser` para el resplandor: acá nadie
+   * pidió nada a mano, así que si el post-procesado se apagó solo por falta
+   * de rendimiento tiene que quedarse apagado. Encenderlo de nuevo desde el
+   * ajuste guardado sería deshacer la única protección automática que tiene
+   * el juego contra una máquina que no da.
+   */
+  _applySettings() {
+    const p = this.profile
+    this.sound.setVolume(p.volume)
+    this.sound.setMuted(p.muted)
+    this.postfx.setEnabled(p.bloom)
+    this.input.aimManual = p.aimManual
+    this._applyQuality(p.quality)
+  }
+
+  /** Calidad = techo de densidad de píxeles. Ver CONFIG.VFX.DPR_HIGH. */
+  _applyQuality(quality) {
+    const cap = quality === 'low' ? CONFIG.VFX.DPR_LOW : CONFIG.VFX.DPR_HIGH
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, cap))
+    // El composer tiene sus propios buffers del tamaño de la pantalla: sin
+    // esto seguiría dibujando el resplandor a la resolución vieja.
+    this.postfx.setSize(window.innerWidth, window.innerHeight)
+  }
+
+  /**
+   * Un ajuste cambió. Se aplica SOLO el que cambió, no todos.
+   *
+   * Volver a aplicarlos todos sería más corto y estaría mal: subir el volumen
+   * volvería a encender un resplandor que el juego había apagado por su
+   * cuenta. Cada rama toca un sistema y nada más.
+   */
+  _cambiarAjuste(clave, valor) {
+    const p = this.profile
+
+    if (clave === 'volume') {
+      p.volume = valor
+      this.sound.setVolume(valor)
+    } else if (clave === 'muted') {
+      p.muted = valor
+      this.sound.setMuted(valor)
+      this.startMenu.refreshSound()
+      this.pauseMenu.refreshSound(valor)
+    } else if (clave === 'bloom') {
+      p.bloom = valor
+      // A mano SÍ puede revivirlo: si lo pedís vos, es tu decisión.
+      this.postfx.setEnabledByUser(valor)
+    } else if (clave === 'quality') {
+      p.quality = valor
+      this._applyQuality(valor)
+    } else if (clave === 'aimManual') {
+      p.aimManual = valor
+      this.input.aimManual = valor
+    } else {
+      return // clave desconocida: no se guarda nada
+    }
+
+    p.save()
+    this.options.render()
+  }
+
+  /**
+   * Borrar el perfil. Vive acá y no en el menú porque toca tres cosas que el
+   * panel de ajustes no conoce: el arma marcada, los sistemas que llevan los
+   * ajustes puestos y la pantalla del taller.
+   */
+  _wipeProfile() {
+    const aviso =
+      '¿Borrar el perfil? Se pierden la moneda, las mejoras compradas, el mejor tiempo y los ajustes.'
+    if (!confirm(aviso)) return
+
+    this.profile.wipe()
+    this.startMenu.selected = this.profile.weapon
+    this._applySettings()
+    this.startMenu.refresh()
+    this.options.render()
   }
 
   /**
@@ -484,8 +618,9 @@ export class GameManager {
     })
     this.renderer.setSize(window.innerWidth, window.innerHeight)
     // Techo de DPR: en pantallas 3x el coste de fill rate se dispara sin
-    // ganancia visual real para este estilo.
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
+    // ganancia visual real para este estilo. Lo vuelve a fijar
+    // _applyQuality() en cuanto el perfil está leído.
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.VFX.DPR_HIGH))
     // El contador de draw calls se reinicia solo en cada render(), y el
     // post-procesado hace varios por frame: sin esto el panel de diagnóstico
     // mostraría solo el último pase y diría "1" con la escena entera dibujada.

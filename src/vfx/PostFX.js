@@ -121,11 +121,23 @@ export class PostFX {
     this._slowFor = 0
   }
 
+  /**
+   * Lo enciende o lo apaga PORQUE EL JUGADOR LO PIDIÓ.
+   *
+   * Es lo único que puede revivir un bloom que se apagó solo por falta de
+   * rendimiento: si lo pedís a mano, es tu decisión y tu máquina. Aplicar
+   * el ajuste guardado al arrancar usa `setEnabled`, que sí respeta la
+   * degradación — si no, el juego se auto-apagaría el bloom y al abrirlo de
+   * nuevo se lo volvería a encender para siempre.
+   */
+  setEnabledByUser(on) {
+    if (on) this.degraded = false
+    this.setEnabled(on)
+    return this.enabled
+  }
+
   /** Interruptor manual, para comparar con y sin. Lo usa la tecla B. */
   toggle() {
-    // El manual sí puede revivirlo: si lo pedís a mano, es tu decisión.
-    this.degraded = false
-    this.setEnabled(!this.enabled)
-    return this.enabled
+    return this.setEnabledByUser(!this.enabled)
   }
 }

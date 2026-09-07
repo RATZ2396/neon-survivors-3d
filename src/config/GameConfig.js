@@ -354,6 +354,19 @@ export const CONFIG = {
     /** Rozamiento por segundo: frena la explosión en vez de dejarla volar. */
     DRAG: 3.2,
 
+    /**
+     * Techo de densidad de píxeles por nivel de calidad (el ajuste
+     * "Calidad" del menú de opciones).
+     *
+     * Es la palanca de rendimiento más grande y más barata que existe en un
+     * juego 3D web: en una pantalla 3x, bajar el techo de 2 a 1 son cuatro
+     * veces menos píxeles que sombrear, sin tocar una sola línea de la
+     * simulación. El juego se ve más blando y corre igual de rápido en un
+     * teléfono viejo, que es exactamente el trato que hay que ofrecer.
+     */
+    DPR_HIGH: 2,
+    DPR_LOW: 1,
+
     BLOOM: true,
     /** Qué tan brillante tiene que ser un píxel para florecer (0..1). */
     BLOOM_THRESHOLD: 0.62,

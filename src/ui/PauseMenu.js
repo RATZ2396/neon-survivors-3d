@@ -12,7 +12,8 @@
  */
 export class PauseMenu {
   /**
-   * @param {{onResume:Function, onQuit:Function, onToggleSound:Function}} acciones
+   * @param {{onResume:Function, onQuit:Function, onToggleSound:Function,
+   *          onOptions:Function}} acciones
    */
   constructor(acciones) {
     this.acciones = acciones
@@ -28,6 +29,7 @@ export class PauseMenu {
         <div class="pbtns">
           <button data-act="resume">Continuar</button>
           <button data-act="sound" data-sound>Sonido</button>
+          <button data-act="options">Ajustes y controles</button>
           <button data-act="quit">Abandonar y volver al taller</button>
         </div>
         <p class="phint">Esc o P para seguir jugando</p>
@@ -44,6 +46,7 @@ export class PauseMenu {
       if (btn.dataset.act === 'resume') this.acciones.onResume()
       else if (btn.dataset.act === 'quit') this.acciones.onQuit()
       else if (btn.dataset.act === 'sound') this.acciones.onToggleSound()
+      else if (btn.dataset.act === 'options') this.acciones.onOptions()
     })
   }
 
