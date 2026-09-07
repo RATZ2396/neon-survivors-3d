@@ -23,7 +23,7 @@ Abre en `http://localhost:5173`.
 | **B** | encender / apagar el bloom, para comparar |
 | **R** / **T** tras morir | reintentar con la misma arma / volver al taller |
 
-La barra de abajo es **tu build**: el arma elegida (con su enfriamiento) y las habilidades que fuiste consiguiendo, con su nivel. El panel de arriba a la izquierda es diagnóstico técnico (FPS, memoria, draw calls) y se apaga con `CONFIG.DEV.SHOW_DEBUG_PANEL`.
+La barra de abajo es **tu build**: el arma elegida (con su recarga) y las habilidades que fuiste consiguiendo, con su nivel. El panel de arriba a la izquierda es diagnóstico técnico (FPS, memoria, draw calls) y se apaga con `CONFIG.DEV.SHOW_DEBUG_PANEL`.
 
 ## Modelo de armas y habilidades
 
@@ -317,7 +317,7 @@ Las mejoras de arma y de skill **no están escritas a mano**: se derivan de `WEA
 
 Dos decisiones que valen la pena registrar:
 
-- **Multiplicativo, no aditivo, en la cadencia.** Restando 10% seis veces, la séptima mejora dejaría el enfriamiento en cero y el arma dispararía infinitas veces por frame. `×0.9` no llega nunca a cero.
+- **Multiplicativo, no aditivo, en la cadencia.** Restando 10% seis veces, la séptima mejora dejaría la recarga en cero y el arma dispararía infinitas veces por frame. `×0.9` no llega nunca a cero.
 - **El daño de un proyectil se congela al disparar.** Si se leyera al impactar, una bala en vuelo cambiaría de daño al subir de nivel a mitad de camino.
 
 ### Verificación de la Parte F

@@ -48,12 +48,12 @@ const STAT_UPGRADES = [
   {
     key: 'RATE',
     name: 'Gatillo rápido',
-    desc: '-10% de enfriamiento en las armas',
+    desc: '-10% de recarga en las armas',
     stacks: 6,
     weight: 3,
     apply: (ctx) => {
       // Multiplicativo, no restando 0.1 cada vez: restando, seis mejoras
-      // darían enfriamiento 0.4 y la séptima lo dejaría en cero.
+      // darían recarga 0.4 y la séptima la dejaría en cero.
       ctx.progression.stats.cooldownMult *= 0.9
     },
   },

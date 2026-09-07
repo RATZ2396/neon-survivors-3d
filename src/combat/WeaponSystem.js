@@ -124,7 +124,7 @@ export class WeaponSystem {
   }
 
   /**
-   * Enfriamiento; menor = dispara más seguido.
+   * Recarga; menor = dispara más seguido.
    *
    * Las dos habilidades que tocan el ritmo entran acá y tiran para lados
    * opuestos a propósito: `ramp` lo baja mientras sostenés el fuego,
@@ -170,7 +170,7 @@ export class WeaponSystem {
     this.cooldown -= delta
     if (this.cooldown > 0) return
 
-    // Si no había blanco, el enfriamiento NO se reinicia: el arma queda cargada
+    // Si no había blanco, la recarga NO se reinicia: el arma queda cargada
     // y dispara en cuanto algo entre en rango.
     if (this._fire()) this.cooldown = this.def.cooldown * this.cooldownMult
   }
@@ -178,8 +178,8 @@ export class WeaponSystem {
   /**
    * Calentamiento: sube mientras dispares seguido, baja al parar.
    *
-   * "Seguido" se mide contra el enfriamiento BASE del arma, no contra el ya
-   * modificado: si se midiera contra el modificado, calentarse acortaría la
+   * "Seguido" se mide contra la recarga BASE del arma, no contra la ya
+   * modificada: si se midiera contra la modificada, calentarse acortaría la
    * ventana que define estar caliente y el arma se realimentaría sola.
    */
   _updateHeat(delta) {

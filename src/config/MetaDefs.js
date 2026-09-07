@@ -18,7 +18,7 @@
 export const MOD = {
   /** Multiplica el daño de cada impacto. */
   DAMAGE: 'DAMAGE',
-  /** Multiplica el enfriamiento. Menor = dispara más seguido. */
+  /** Multiplica la recarga. Menor = dispara más seguido. */
   COOLDOWN: 'COOLDOWN',
   /** Suma unidades al alcance del auto-apuntado. */
   RANGE: 'RANGE',
@@ -53,18 +53,18 @@ function track(key, name, mod, max, step, cost, growth, desc) {
 export const META_TREES = {
   PISTOL: [
     track('DMG', 'Munición pesada', MOD.DAMAGE, 5, 0.12, 40, 1.55, '+12% de daño por nivel'),
-    track('RATE', 'Gatillo liviano', MOD.COOLDOWN, 4, 0.93, 55, 1.6, '-7% de enfriamiento por nivel'),
+    track('RATE', 'Gatillo liviano', MOD.COOLDOWN, 4, 0.93, 55, 1.6, '-7% de recarga por nivel'),
     track('RANGE', 'Cañón largo', MOD.RANGE, 3, 2.0, 45, 1.5, '+2 u de alcance por nivel'),
     track('COUNT', 'Segundo cañón', MOD.COUNT, 1, 1, 420, 1, 'Dispara dos balas en vez de una'),
   ],
   SHOTGUN: [
     track('DMG', 'Perdigón de acero', MOD.DAMAGE, 5, 0.12, 40, 1.55, '+12% de daño por nivel'),
-    track('RATE', 'Recámara doble', MOD.COOLDOWN, 3, 0.9, 70, 1.7, '-10% de enfriamiento por nivel'),
+    track('RATE', 'Recámara doble', MOD.COOLDOWN, 3, 0.9, 70, 1.7, '-10% de recarga por nivel'),
     track('COUNT', 'Carga ampliada', MOD.COUNT, 3, 1, 90, 1.75, '+1 perdigón por nivel'),
     track('RANGE', 'Choke', MOD.RANGE, 2, 2.5, 130, 1.8, '+2.5 u de alcance por nivel'),
   ],
   SMG: [
-    track('RATE', 'Muelle reforzado', MOD.COOLDOWN, 5, 0.93, 50, 1.55, '-7% de enfriamiento por nivel'),
+    track('RATE', 'Muelle reforzado', MOD.COOLDOWN, 5, 0.93, 50, 1.55, '-7% de recarga por nivel'),
     track('DMG', 'Punta perforante', MOD.DAMAGE, 5, 0.11, 45, 1.6, '+11% de daño por nivel'),
     track('RANGE', 'Compensador', MOD.RANGE, 4, 1.5, 40, 1.5, '+1.5 u de alcance por nivel'),
   ],

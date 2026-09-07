@@ -23,6 +23,8 @@ export class Player {
 
     this.maxHp = CONFIG.PLAYER.MAX_HP
     this.hp = this.maxHp
+    /** Segundos desde el último golpe. Lo lee la regeneración. */
+    this.sinceDamage = 0
     this.isDead = false
     /** Segundos de invulnerabilidad restantes tras recibir un golpe. */
     this.invulnTimer = 0
@@ -68,6 +70,7 @@ export class Player {
     // vuelve a leer el input ni corrige la posición.
     this.model.update(delta, this.currentSpeed, this.isMoving)
     this._updateHitFlash()
+    this._regenerate(delta)
   }
 
   /**
@@ -80,11 +83,30 @@ export class Player {
     this.hp = Math.min(this.maxHp, this.hp + amount)
   }
 
+  /**
+   * Regeneración: se cura sola mientras no te toquen.
+   *
+   * El reloj lo reinicia takeDamage(), no el contacto: si te pegan, volvés
+   * a empezar de cero. Por eso esto no es "más vida" — mientras estás en
+   * problemas no regenera nada. Sirve para lo otro: que un raspón temprano
+   * no te condene los diez minutos que siguen.
+   */
+  _regenerate(delta) {
+    if (this.isDead) return
+
+    this.sinceDamage += delta
+    if (this.sinceDamage < CONFIG.PLAYER.REGEN_DELAY) return
+    if (this.hp >= this.maxHp) return
+
+    this.hp = Math.min(this.maxHp, this.hp + CONFIG.PLAYER.REGEN_PER_SECOND * delta)
+  }
+
   takeDamage(amount) {
     if (this.isDead || this.invulnTimer > 0) return
 
     this.hp -= amount
     this.invulnTimer = CONFIG.PLAYER.INVULN_TIME
+    this.sinceDamage = 0
 
     if (this.hp <= 0) {
       this.hp = 0
@@ -107,6 +129,7 @@ export class Player {
     this.hp = this.maxHp
     this.isDead = false
     this.invulnTimer = 0
+    this.sinceDamage = 0
     this.model.reset()
   }
 

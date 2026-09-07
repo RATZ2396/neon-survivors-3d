@@ -11,7 +11,7 @@ import { SKILL_DEFS } from '../config/SkillDefs.js'
  * la versión anterior las dos cosas estaban mezcladas en overlays superpuestos y
  * no se sabía cuál era información del juego y cuál era diagnóstico.
  *
- * Ritmo de actualización: las barras de enfriamiento se mueven todos los frames
+ * Ritmo de actualización: las barras de recarga se mueven todos los frames
  * (siete elementos, imperceptible) pero solo se escribe en el DOM cuando el
  * valor cambió lo suficiente como para verse. El texto va a 4 Hz: nadie lee un
  * contador que cambia 60 veces por segundo.
@@ -76,7 +76,7 @@ export class HUD {
   /**
    * La barra de abajo es TU BUILD: el arma elegida más las habilidades que
    * fuiste consiguiendo. Se reconstruye solo cuando cambia la composición —
-   * no en cada frame — y las barras de enfriamiento se actualizan aparte.
+   * no en cada frame — y las barras de recarga se actualizan aparte.
    */
   _rebuildLoadout() {
     const wDef = this.weapons.def
@@ -186,15 +186,28 @@ export class HUD {
   }
 
   _updateHp() {
+    const max = this.player.maxHp
     const hp = this.player.hp
-    if (hp === this._lastHp) return
-    this._lastHp = hp
 
-    const ratio = hp / this.player.maxHp
+    /**
+     * Se compara lo que se VE, no la vida exacta.
+     *
+     * Antes alcanzaba con que cambiara, porque la vida solo bajaba y lo hacía
+     * de a golpes enteros. Con la regeneración sube sola ~0.025 por frame, y
+     * escribir dos estilos y un texto 60 veces por segundo para mover la barra
+     * un cuarto de píxel es trabajo puro. Redondeando hacia arriba se escribe
+     * una vez por punto de vida — salvo el máximo exacto, que se respeta para
+     * que la barra llegue a llenarse del todo.
+     */
+    const visible = hp >= max ? max : Math.ceil(hp)
+    if (visible === this._lastHp) return
+    this._lastHp = visible
+
+    const ratio = visible / max
     this.hpFill.style.width = (ratio * 100).toFixed(1) + '%'
     // El color de la barra es la señal más rápida de "estás por morir".
     this.hpFill.style.background = ratio > 0.5 ? '#39d0ff' : ratio > 0.25 ? '#ffd166' : '#ff4d6d'
-    this.hpText.textContent = `${Math.ceil(hp)} / ${this.player.maxHp}`
+    this.hpText.textContent = `${visible} / ${max}`
   }
 
   _updateWeapons() {

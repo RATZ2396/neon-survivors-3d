@@ -33,6 +33,20 @@ export const CONFIG = {
      * ser un desafío para ser una pared.
      */
     INVULN_TIME: 0.7,
+
+    /**
+     * REGENERACIÓN. Segundos sin recibir daño antes de empezar a curarse, y a
+     * qué ritmo.
+     *
+     * La demora es lo que hace que esto no sea "más vida": 6 segundos es mucho
+     * más de lo que dura estar rodeado, así que no te salva de una mala pelea.
+     * Lo que arregla es la otra cosa — que un raspón del minuto 2 te condene el
+     * resto de la partida.
+     *
+     * A 1.5/s, recuperar los 100 de vida completos son 67 segundos limpios.
+     */
+    REGEN_DELAY: 6,
+    REGEN_PER_SECOND: 1.5,
   },
 
   CAMERA: {
