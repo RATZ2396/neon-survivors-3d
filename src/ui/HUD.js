@@ -226,6 +226,18 @@ export class HUD {
    * la partida se conecta con lo que queda después: sin ese número, morir se
    * siente como haber perdido el rato entero.
    */
+  /**
+   * Pantalla de muerte.
+   *
+   * LOS BOTONES NO SON UN ADORNO. Durante un tiempo esto ofrecía solo "R
+   * para reintentar · T para el taller", y en un teléfono eso significaba
+   * quedar trabado: sin teclado, morirse no tenía salida y la única forma
+   * de seguir era recargar la página. Las teclas siguen funcionando; lo que
+   * cambió es que ya no son la única manera.
+   *
+   * Los callbacks los inyecta el GameManager, que es el que sabe cómo se
+   * empieza una partida. El HUD sigue sin decidir nada del juego.
+   */
   showGameOver(kills, seconds, reward = 0, currency = 0) {
     if (this._gameOverEl) return
 
@@ -236,9 +248,20 @@ export class HUD {
         <h1>MORISTE</h1>
         <p>${kills} bajas · ${Math.floor(seconds / 60)}:${String(Math.floor(seconds % 60)).padStart(2, '0')} sobrevividos</p>
         <p class="reward">+${reward} <i>de recompensa</i> · ${Math.floor(currency)} en total</p>
+        <div class="gobtns">
+          <button data-act="retry">Reintentar</button>
+          <button data-act="shop">Volver al taller</button>
+        </div>
         <p class="hint">R para reintentar con la misma arma · T para el taller</p>
       </div>
     `
+
+    el.addEventListener('click', (ev) => {
+      const act = ev.target.closest('button')?.dataset.act
+      if (act === 'retry') this.onRetry?.()
+      else if (act === 'shop') this.onShop?.()
+    })
+
     document.body.appendChild(el)
     this._gameOverEl = el
   }

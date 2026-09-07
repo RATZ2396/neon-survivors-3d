@@ -154,6 +154,11 @@ export class GameManager {
       this.boss,
       this.skills,
     )
+    // Los botones de la pantalla de muerte hacen lo mismo que R y T. Sin
+    // esto, en un teléfono morirse no tiene salida.
+    this.hud.onRetry = () => this.startRun(this.startMenu.selected)
+    this.hud.onShop = () => this.toMenu()
+
     this.monitor = new PerformanceMonitor()
 
     /**

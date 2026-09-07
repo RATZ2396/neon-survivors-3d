@@ -1043,6 +1043,32 @@
       color: #cfe6f5;
     }
 
+    .gobtns {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 12px;
+      margin-top: 22px;
+    }
+
+    .gobtns button {
+      /* 44px de alto: el mínimo que se acierta con el dedo. */
+      min-height: 44px;
+      padding: 12px 22px;
+      border: 1px solid rgba(57, 208, 255, 0.45);
+      border-radius: 8px;
+      background: rgba(57, 208, 255, 0.12);
+      color: #39d0ff;
+      font: inherit;
+      font-size: 13px;
+      letter-spacing: 1px;
+      cursor: pointer;
+    }
+
+    .gobtns button:hover {
+      background: rgba(57, 208, 255, 0.24);
+    }
+
     #game-over .reward {
       margin-top: 6px;
       color: #ffd166;
