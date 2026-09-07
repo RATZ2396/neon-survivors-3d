@@ -22,7 +22,13 @@ import { ParticleSystem } from '../src/vfx/ParticleSystem.js'
 import { VFX_DEFS } from '../src/config/VfxDefs.js'
 import { FrameEvents } from '../src/core/FrameEvents.js'
 import { BossController } from '../src/enemies/BossController.js'
-import { BOSS_DEFS } from '../src/config/BossDefs.js'
+import {
+  BOSS_DEFS,
+  BOSS,
+  ELITE_TIER,
+  ELITE_SCHEDULE,
+  eliteAt,
+} from '../src/config/BossDefs.js'
 import { WeaponSystem } from '../src/combat/WeaponSystem.js'
 
 /** Escena de mentira: los sistemas solo le piden add(). */
@@ -500,6 +506,13 @@ describe('WaveManager', () => {
     const { w, enemigos } = crear()
     const limite = CONFIG.WORLD.ARENA_SIZE / 2
     for (let i = 0; i < 40; i++) w._spawnBatch({ x: limite, z: limite })
+
+    // Que aparezca ALGUIEN es parte del test: durante un tiempo esta llamada
+    // no spawneaba nada (la firma era (stage, playerPos) y se le pasaba un
+    // solo argumento), el bucle de abajo recorría cero elementos y el test
+    // pasaba sin comprobar una sola posición.
+    expect(enemigos.count).toBeGreaterThan(0)
+
     for (let i = 0; i < enemigos.count; i++) {
       expect(Math.abs(enemigos.posX[i])).toBeLessThan(limite + 0.001)
       expect(Math.abs(enemigos.posZ[i])).toBeLessThan(limite + 0.001)
@@ -903,7 +916,7 @@ describe('Tablas de datos', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('Boss', () => {
+describe('Élites: minijefes y jefes', () => {
   function crear() {
     const enemies = new EnemyManager(escena)
     const waves = { elapsed: 0, spawnMultiplier: 1 }
@@ -911,71 +924,214 @@ describe('Boss', () => {
     return { boss: new BossController(enemies, waves, player, escena), enemies, waves, player }
   }
 
-  test('el Cube King no embiste', () => {
-    expect(BOSS_DEFS[0].charge).toBeFalsy()
+  const defDe = (key) => BOSS_DEFS[BOSS[key]]
+
+  /** Hace aparecer y morir élites hasta que hayan salido `n`. */
+  function saltarA(ctx, n) {
+    while (ctx.boss.spawned < n) {
+      ctx.waves.elapsed = ctx.boss.nextAt
+      ctx.boss.update(0.016)
+      ctx.enemies.resolveDamage() // por si limpió la arena
+      const i = ctx.enemies.indexOfId(ctx.boss.bossId)
+      if (i !== -1) ctx.enemies.damage(i, 1e9)
+      ctx.boss.update(0.016)
+    }
+  }
+
+  // ── la tabla ───────────────────────────────────────────────────────────
+  test('el calendario está ordenado en el tiempo', () => {
+    for (let i = 1; i < ELITE_SCHEDULE.length; i++) {
+      expect(ELITE_SCHEDULE[i].at).toBeGreaterThan(ELITE_SCHEDULE[i - 1].at)
+    }
   })
 
-  test('pero sí golpea el área', () => {
-    expect(BOSS_DEFS[0].slam).toBeTruthy()
-    expect(BOSS_DEFS[0].slam.damage).toBeGreaterThan(0)
+  test('todo lo que nombra el calendario existe en la tabla de élites', () => {
+    for (const fila of ELITE_SCHEDULE) expect(defDe(fila.key)).toBeTruthy()
   })
 
+  test('el calendario cumple la forma acordada: primero un minijefe, después un jefe', () => {
+    // horda → minijefe CON la horda → jefe casi solo. Si el primer evento de
+    // la partida fuera un jefe, el escalón intermedio no existiría.
+    expect(defDe(ELITE_SCHEDULE[0].key).tier).toBe(ELITE_TIER.MINI)
+    const primerJefe = ELITE_SCHEDULE.findIndex((f) => defDe(f.key).tier === ELITE_TIER.BOSS)
+    expect(primerJefe).toBeGreaterThan(0)
+  })
+
+  test('cada élite tiene al menos una habilidad', () => {
+    // Una sin embestida ni golpe de área sería un saco de vida caminando.
+    for (const def of BOSS_DEFS) expect(!!(def.charge || def.slam)).toBe(true)
+  })
+
+  test('cada élite apunta a un arquetipo pesado y que no sale por oleada', () => {
+    const porOleada = new Set()
+    for (const etapa of WAVE_STAGES) for (const k in etapa.weights) porOleada.add(k)
+
+    for (const def of BOSS_DEFS) {
+      const enemigo = ENEMY_DEFS[def.enemyType]
+      expect(enemigo).toBeTruthy()
+      // Pesado: no lo empuja la separación ni lo bloquea la multitud.
+      expect(enemigo.heavy).toBe(true)
+      // Y ninguna oleada puede escupirlo: para eso está el calendario.
+      expect(porOleada.has(enemigo.key)).toBe(false)
+    }
+  })
+
+  test('el Cube King no embiste; el Segador sí', () => {
+    // La embestida es de los cuerpos rápidos y angostos. Ver BossDefs.
+    expect(defDe('CUBE_KING').charge).toBeFalsy()
+    expect(defDe('CUBE_KING').slam).toBeTruthy()
+    expect(defDe('REAPER').charge).toBeTruthy()
+    expect(defDe('REAPER').slam).toBeTruthy()
+  })
+
+  // ── aparición ──────────────────────────────────────────────────────────
   test('aparece cuando toca y no antes', () => {
     const { boss, waves } = crear()
-    waves.elapsed = CONFIG.BOSS.FIRST_AT - 1
+    waves.elapsed = ELITE_SCHEDULE[0].at - 1
     boss.update(0.016)
     expect(boss.active).toBe(false)
-    waves.elapsed = CONFIG.BOSS.FIRST_AT
+
+    waves.elapsed = ELITE_SCHEDULE[0].at
     boss.update(0.016)
     expect(boss.active).toBe(true)
   })
 
-  test('al aparecer limpia la arena pero la basura suelta sus gemas', () => {
-    const { boss, enemies, waves } = crear()
-    for (let i = 0; i < 30; i++) enemies.spawn(ENEMY_TYPE.NORMAL, i, 0)
-    waves.elapsed = CONFIG.BOSS.FIRST_AT
-    boss.update(0.016)
-    enemies.resolveDamage()
-    expect(enemies.deathCount).toBe(30)
-    expect(enemies.count).toBe(1) // queda solo el boss
+  test('el minijefe NO limpia la arena ni afloja el spawner', () => {
+    // Es todo su sentido: sale ENTRE la horda, que sigue apareciendo igual.
+    const ctx = crear()
+    for (let i = 0; i < 30; i++) ctx.enemies.spawn(ENEMY_TYPE.NORMAL, i, 0)
+
+    ctx.waves.elapsed = ELITE_SCHEDULE[0].at
+    ctx.boss.update(0.016)
+    ctx.enemies.resolveDamage()
+
+    expect(ctx.boss.isBoss).toBe(false)
+    expect(ctx.enemies.count).toBe(31) // los 30 de antes, más el minijefe
+    expect(ctx.waves.spawnMultiplier).toBe(1)
   })
 
-  test('el duelo afloja el spawner y al morir lo normaliza', () => {
-    const { boss, enemies, waves } = crear()
-    waves.elapsed = CONFIG.BOSS.FIRST_AT
-    boss.update(0.016)
-    expect(waves.spawnMultiplier).toBe(CONFIG.BOSS.SPAWN_SLOWDOWN)
+  test('el jefe sí limpia la arena, y la basura suelta sus gemas', () => {
+    const ctx = crear()
+    saltarA(ctx, 1) // el primero es minijefe: se lo saltea
+    for (let i = 0; i < 30; i++) ctx.enemies.spawn(ENEMY_TYPE.NORMAL, i, 0)
 
-    const i = enemies.indexOfId(boss.bossId)
-    enemies.damage(i, 1e9)
-    boss.update(0.016)
-    expect(boss.active).toBe(false)
-    expect(boss.defeated).toBe(1)
-    expect(waves.spawnMultiplier).toBe(1)
+    ctx.waves.elapsed = ctx.boss.nextAt
+    ctx.boss.update(0.016)
+    ctx.enemies.resolveDamage()
+
+    expect(ctx.boss.isBoss).toBe(true)
+    expect(ctx.enemies.deathCount).toBe(30)
+    expect(ctx.enemies.count).toBe(1) // queda solo el jefe
   })
 
-  test('cada boss siguiente tiene más vida', () => {
-    const { boss, enemies, waves } = crear()
-    waves.elapsed = CONFIG.BOSS.FIRST_AT
-    boss.update(0.016)
-    const primera = boss.maxHp
-    enemies.damage(enemies.indexOfId(boss.bossId), 1e9)
-    boss.update(0.016)
-    waves.elapsed = boss.nextAt
-    boss.update(0.016)
-    expect(boss.maxHp).toBeGreaterThan(primera)
+  test('el duelo del jefe afloja el spawner y al morir lo normaliza', () => {
+    const ctx = crear()
+    saltarA(ctx, 1)
+    ctx.waves.elapsed = ctx.boss.nextAt
+    ctx.boss.update(0.016)
+    expect(ctx.waves.spawnMultiplier).toBe(CONFIG.BOSS.SPAWN_SLOWDOWN)
+
+    ctx.enemies.damage(ctx.enemies.indexOfId(ctx.boss.bossId), 1e9)
+    ctx.boss.update(0.016)
+    expect(ctx.boss.active).toBe(false)
+    expect(ctx.boss.defeated).toBe(2)
+    expect(ctx.waves.spawnMultiplier).toBe(1)
   })
 
-  // La embestida se le sacó al Cube King por diseño, pero el mecanismo sigue
-  // soportado: un boss futuro la activa agregando la clave a su fila. Este test
-  // es lo que hace que "soportado" no sea una promesa vacía.
-  test('la embestida sigue funcionando para un boss que la declare', () => {
-    const { boss, enemies } = crear()
-    const def = {
-      enemyType: ENEMY_TYPE.BOSS,
-      charge: { every: 6.5, telegraph: 0.85, speed: 15, duration: 1, warnColor: 0xff4d6d },
+  test('nunca hay dos élites a la vez: la siguiente espera a que caiga', () => {
+    // Sin esta regla, un jugador lento juntaría minijefes hasta volver la
+    // pantalla ilegible, y peor: un jefe podría aparecer arriba de uno, y
+    // "el jefe pelea solo" dejaría de ser cierto.
+    const ctx = crear()
+    ctx.waves.elapsed = ELITE_SCHEDULE[0].at
+    ctx.boss.update(0.016)
+    ctx.enemies.resolveDamage()
+
+    // Pasa muchísimo tiempo sin que la maten.
+    ctx.waves.elapsed = 10000
+    for (let f = 0; f < 200; f++) ctx.boss.update(0.016)
+    expect(ctx.boss.spawned).toBe(1)
+    expect(ctx.enemies.count).toBe(1)
+
+    // Cae, y la siguiente sale enseguida: la espera no se pierde.
+    ctx.enemies.damage(ctx.enemies.indexOfId(ctx.boss.bossId), 1e9)
+    ctx.boss.update(0.016)
+    expect(ctx.boss.active).toBe(false)
+    ctx.boss.update(0.016)
+    expect(ctx.boss.spawned).toBe(2)
+  })
+
+  // ── escalado ───────────────────────────────────────────────────────────
+  test('la vida NO escala dentro de la primera vuelta', () => {
+    // Los números de ENEMY_DEFS son una curva diseñada. Multiplicarlos por
+    // "cuántos ya salieron" la borraría: el cuarto minijefe pegaría más que
+    // el primer jefe.
+    const ctx = crear()
+    for (let n = 0; n < ELITE_SCHEDULE.length; n++) {
+      ctx.waves.elapsed = ctx.boss.nextAt
+      ctx.boss.update(0.016)
+      ctx.enemies.resolveDamage()
+
+      const base = ENEMY_DEFS[defDe(ELITE_SCHEDULE[n].key).enemyType].hp
+      expect(ctx.boss.maxHp).toBeCloseTo(base, 0.01)
+
+      ctx.enemies.damage(ctx.enemies.indexOfId(ctx.boss.bossId), 1e9)
+      ctx.boss.update(0.016)
     }
-    const i = enemies.spawn(ENEMY_TYPE.BOSS, 0, 0)
+  })
+
+  test('y sí escala al dar la vuelta al calendario', () => {
+    const ctx = crear()
+    saltarA(ctx, ELITE_SCHEDULE.length)
+
+    ctx.waves.elapsed = ctx.boss.nextAt
+    ctx.boss.update(0.016)
+    ctx.enemies.resolveDamage()
+
+    const base = ENEMY_DEFS[defDe(ELITE_SCHEDULE[0].key).enemyType].hp
+    expect(ctx.boss.maxHp).toBeCloseTo(base * (1 + CONFIG.BOSS.HP_SCALE_PER_LOOP), 0.01)
+  })
+
+  test('agotada la tabla, el reloj sigue parejo cada LOOP_EVERY', () => {
+    const largo = ELITE_SCHEDULE.length
+    const ultimo = ELITE_SCHEDULE[largo - 1].at
+    expect(eliteAt(largo).at).toBeCloseTo(ultimo + CONFIG.BOSS.LOOP_EVERY, 0.001)
+    expect(eliteAt(largo).loop).toBe(1)
+    expect(eliteAt(largo).key).toBe(ELITE_SCHEDULE[0].key)
+  })
+
+  // ── estado ─────────────────────────────────────────────────────────────
+  test('un golpe a medio cargar no sobrevive a la muerte', () => {
+    // Si sobreviviera, se resolvería sobre la élite siguiente, en el lugar
+    // donde había marcado el anillo la anterior.
+    const ctx = crear()
+    ctx.waves.elapsed = ELITE_SCHEDULE[0].at
+    ctx.boss.update(0.016)
+    ctx.enemies.resolveDamage()
+
+    ctx.boss._slamWindup = 0.4
+    ctx.boss.slamRing.visible = true
+    ctx.enemies.damage(ctx.enemies.indexOfId(ctx.boss.bossId), 1e9)
+    ctx.boss.update(0.016)
+
+    expect(ctx.boss._slamWindup).toBe(0)
+    expect(ctx.boss.slamWarning).toBe(false)
+    expect(ctx.boss.tier).toBe('')
+  })
+
+  test('reset deja el calendario en la primera entrada', () => {
+    const ctx = crear()
+    saltarA(ctx, 3)
+    ctx.boss.reset()
+    expect(ctx.boss.spawned).toBe(0)
+    expect(ctx.boss.nextAt).toBe(ELITE_SCHEDULE[0].at)
+    expect(ctx.boss.active).toBe(false)
+  })
+
+  test('la embestida funciona para cualquiera que la declare', () => {
+    const { boss, enemies } = crear()
+    const def = defDe('BRUTE')
+    const i = enemies.spawn(def.enemyType, 0, 0)
     boss._chargeTimer = 0.1
     boss._chargeState = ''
 
@@ -993,8 +1149,8 @@ describe('Boss', () => {
     // Se acaba: vuelve a su velocidad normal.
     boss._updateCharge(def.charge.duration + 0.01, i, def)
     expect(boss.chargePhase).toBe('')
-    // speed es un Float32Array: 2.3 no existe exacto en 32 bits.
-    expect(enemies.speed[i]).toBeCloseTo(ENEMY_DEFS[ENEMY_TYPE.BOSS].speed, 1e-5)
+    // speed es un Float32Array: 2.9 no existe exacto en 32 bits.
+    expect(enemies.speed[i]).toBeCloseTo(ENEMY_DEFS[def.enemyType].speed, 1e-5)
   })
 })
 
@@ -1023,14 +1179,14 @@ describe('Elección de blanco', () => {
   test('con el boss lejos y nada encima, le apunta al boss', () => {
     const { w, enemies } = armar()
     enemies.spawn(ENEMY_TYPE.NORMAL, 0, LEJOS)
-    const boss = enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS + 3)
+    const boss = enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, LEJOS + 3)
     // El boss está MÁS LEJOS que la basura y aun así gana.
     expect(w._findTarget(w.range)).toBe(boss)
   })
 
   test('pero lo que tenés encima manda sobre el boss', () => {
     const { w, enemies } = armar()
-    enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS)
+    enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, LEJOS)
     const pegado = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 2)
     expect(w._findTarget(w.range)).toBe(pegado)
   })
@@ -1038,12 +1194,12 @@ describe('Elección de blanco', () => {
   test('el radio de amenaza es el límite exacto', () => {
     const g = CONFIG.COMBAT.PRIORITY_GUARD_RADIUS
     const a = armar()
-    a.enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS)
+    a.enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, LEJOS)
     const dentro = a.enemies.spawn(ENEMY_TYPE.NORMAL, 0, g - 0.5)
     expect(a.w._findTarget(a.w.range)).toBe(dentro)
 
     const b = armar()
-    const boss = b.enemies.spawn(ENEMY_TYPE.BOSS, 0, LEJOS)
+    const boss = b.enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, LEJOS)
     b.enemies.spawn(ENEMY_TYPE.NORMAL, 0, g + 0.5)
     expect(b.w._findTarget(b.w.range)).toBe(boss)
   })
@@ -1302,7 +1458,7 @@ describe('Balas con habilidades', () => {
   test('pero al boss no lo mueve', () => {
     const { enemies, p, mods } = armar()
     mods.knockback = 1
-    const i = enemies.spawn(ENEMY_TYPE.BOSS, 0, 1)
+    const i = enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, 1)
     tirar(p, enemies)
     p.update(0.05)
     expect(enemies.posZ[i]).toBe(1)
@@ -1373,7 +1529,7 @@ describe('SkillSystem', () => {
     const { s, enemies } = armar()
     const lvl = SKILL_DEFS[SKILL.PULSE].levels[0]
     const drone = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
-    const boss = enemies.spawn(ENEMY_TYPE.BOSS, 0, 2)
+    const boss = enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, 2)
 
     s._pulse(lvl)
 
@@ -1638,6 +1794,136 @@ describe('Ajustes', () => {
     // ...pero al des-silenciar aparece el volumen nuevo, no el viejo.
     s.setMuted(false)
     expect(s.master.gain.value).toBe(0.8)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('El enemigo que se parte', () => {
+  test('al morir deja dos larvas donde estaba', () => {
+    const e = new EnemyManager(escena)
+    e.spawn(ENEMY_TYPE.SPLITTER, 5, -3)
+    e.queueDamage(0, 1e6)
+    e.resolveDamage()
+
+    expect(e.count).toBe(2)
+    for (let i = 0; i < e.count; i++) {
+      expect(e.type[i]).toBe(ENEMY_TYPE.SWARM)
+      // Cerca de donde cayó el padre, no encima: si salieran en el mismo
+      // punto la separación tendría que desapilarlas a empujones.
+      expect(Math.abs(e.posX[i] - 5)).toBeLessThan(1)
+      expect(Math.abs(e.posZ[i] + 3)).toBeLessThan(1)
+    }
+  })
+
+  test('las crías heredan el multiplicador de vida del padre', () => {
+    // Sin esto, un Mitosis del minuto seis dejaría dos larvas de juguete y
+    // partirse dejaría de significar nada.
+    const e = new EnemyManager(escena)
+    e.spawn(ENEMY_TYPE.SPLITTER, 0, 0, 4)
+    e.queueDamage(0, 1e6)
+    e.resolveDamage()
+
+    const larva = ENEMY_DEFS[ENEMY_TYPE.SWARM].hp
+    for (let i = 0; i < e.count; i++) expect(e.maxHp[i]).toBeCloseTo(larva * 4, 0.01)
+  })
+
+  test('la limpieza de arena del jefe no lo hace partirse', () => {
+    // Partirse es la recompensa por matarlo, no algo que pase por decreto:
+    // si no, el duelo del jefe empezaría con la arena sembrada de larvas.
+    const e = new EnemyManager(escena)
+    for (let i = 0; i < 5; i++) e.spawn(ENEMY_TYPE.SPLITTER, i, 0)
+    e.queueWipe()
+    e.resolveDamage()
+
+    expect(e.count).toBe(0)
+    expect(e.deathCount).toBe(5)
+  })
+
+  test('y la bandera de limpieza no queda encendida para el frame siguiente', () => {
+    const e = new EnemyManager(escena)
+    e.queueWipe() // sobre una arena vacía: no deja nada pendiente
+    e.resolveDamage()
+
+    e.spawn(ENEMY_TYPE.SPLITTER, 0, 0)
+    e.queueDamage(0, 1e6)
+    e.resolveDamage()
+    expect(e.count).toBe(2)
+  })
+
+  test('en lo que se parte no puede partirse a su vez', () => {
+    // Un ciclo acá llenaría la horda hasta el techo con una sola muerte.
+    for (const def of ENEMY_DEFS) {
+      if (!def.splits) continue
+      const cria = ENEMY_DEFS[ENEMY_TYPE[def.splits.into]]
+      expect(cria).toBeTruthy()
+      expect(cria.splits).toBeFalsy()
+    }
+  })
+
+  test('con la horda al tope no se parte, y no se pasa del techo', () => {
+    const e = new EnemyManager(escena)
+    while (e.count < e.max) e.spawn(ENEMY_TYPE.SPLITTER, 0, 0)
+
+    e.queueDamage(0, 1e6)
+    e.resolveDamage()
+    expect(e.count).toBeLessThan(e.max + 1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Composición de las oleadas', () => {
+  test('cada peso nombra un tipo que existe', () => {
+    for (const etapa of WAVE_STAGES) {
+      for (const key in etapa.weights) expect(ENEMY_TYPE[key] !== undefined).toBe(true)
+    }
+  })
+
+  test('un tipo con peso cero nunca sale', () => {
+    // Es lo que rompía acumular los pesos en el orden en que están
+    // escritos: con los acumulados desordenados, _pickType devolvía tipos
+    // que la etapa no nombraba.
+    const e = new EnemyManager(escena)
+    const w = new WaveManager(e)
+    w.stageIndex = 0 // la primera etapa solo nombra NORMAL
+
+    for (let i = 0; i < 3000; i++) expect(w._pickType()).toBe(ENEMY_TYPE.NORMAL)
+  })
+
+  test('las proporciones son las de la tabla, no las del orden de escritura', () => {
+    const e = new EnemyManager(escena)
+    const w = new WaveManager(e)
+    const etapa = WAVE_STAGES.length - 1
+    w.stageIndex = etapa
+
+    const pesos = WAVE_STAGES[etapa].weights
+    let total = 0
+    for (const k in pesos) total += pesos[k]
+
+    const cuenta = new Array(ENEMY_DEFS.length).fill(0)
+    const N = 40000
+    for (let i = 0; i < N; i++) cuenta[w._pickType()]++
+
+    for (const k in pesos) {
+      const esperado = pesos[k] / total
+      const real = cuenta[ENEMY_TYPE[k]] / N
+      expect(real).toBeCloseTo(esperado, 0.02)
+    }
+  })
+
+  test('ninguna oleada puede escupir una élite', () => {
+    const elites = new Set(BOSS_DEFS.map((d) => ENEMY_DEFS[d.enemyType].key))
+    for (const etapa of WAVE_STAGES) {
+      for (const key in etapa.weights) expect(elites.has(key)).toBe(false)
+    }
+  })
+
+  test('la horda tardía no es la misma horda más grande', () => {
+    // La proporción de drones baja mientras sube todo lo demás: si el peso
+    // del drone se mantuviera, agregar tipos nuevos sería decoración.
+    const primera = WAVE_STAGES[0].weights
+    const ultima = WAVE_STAGES[WAVE_STAGES.length - 1].weights
+    expect(ultima.NORMAL).toBeLessThan(primera.NORMAL)
+    expect(Object.keys(ultima).length).toBeGreaterThan(Object.keys(primera).length)
   })
 })
 

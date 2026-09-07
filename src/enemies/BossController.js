@@ -1,18 +1,30 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config/GameConfig.js'
 import { ENEMY_DEFS } from '../config/EnemyDefs.js'
-import { BOSS_DEFS } from '../config/BossDefs.js'
+import { BOSS_DEFS, BOSS, ELITE_TIER, eliteAt } from '../config/BossDefs.js'
 
 /**
- * BossController — cuándo aparece el boss y qué hace mientras está vivo.
+ * BossController — cuándo aparece cada élite y qué hace mientras está viva.
  *
- * No es dueño de una entidad propia: el boss vive dentro del EnemyManager como
- * cualquier otro enemigo (ver el comentario del arquetipo BOSS en EnemyDefs).
- * Este archivo solo agrega el comportamiento que no se puede escribir como un
- * número: la aparición programada, la embestida y el golpe de área.
+ * "Élite" son las dos cosas: los minijefes, que salen adentro de la horda, y
+ * los jefes, que salen casi solos. Comparten todo salvo dos líneas (ver
+ * `_spawn`), así que comparten controlador. Escribir un MinibossController
+ * aparte habría duplicado la embestida, el golpe de área, el seguimiento por
+ * id y el reseteo, para terminar cambiando dos condicionales.
  *
- * Guarda el `id` del boss, nunca su índice: el swap-remove del EnemyManager
+ * No es dueño de ninguna entidad: la élite vive dentro del EnemyManager como
+ * cualquier otro enemigo (ver el comentario de los arquetipos en EnemyDefs).
+ * Este archivo solo agrega lo que no se puede escribir como un número: el
+ * calendario de apariciones, la embestida y el golpe de área.
+ *
+ * Guarda el `id` de la élite, nunca su índice: el swap-remove del EnemyManager
  * mueve los índices en cuanto muere cualquier otro enemigo.
+ *
+ * UNA SOLA ÉLITE A LA VEZ. `_next` se adelanta al aparecer, no al morir, y
+ * `update` solo mira el reloj cuando no hay nadie vivo: si la de turno se
+ * demora, la siguiente espera su muerte y sale enseguida. Es lo que sostiene
+ * la promesa de "el jefe pelea solo" — sin esta regla un jugador lento podría
+ * juntar un jefe encima de un minijefe.
  */
 export class BossController {
   constructor(enemies, waves, player, scene) {
@@ -25,11 +37,13 @@ export class BossController {
   }
 
   _initMeshes(scene) {
-    // Anillo de aviso del golpe de área: se agranda mientras el boss carga el
-    // golpe, así se ve exactamente dónde y cuándo va a caer.
+    // Anillo de aviso del golpe de área: se agranda mientras la élite carga el
+    // golpe, así se ve exactamente dónde y cuándo va a caer. El color lo pone
+    // cada élite al aparecer — es de las pocas cosas que las distingue de un
+    // vistazo mientras están cargando.
     const geo = new THREE.RingGeometry(0.86, 1, 48)
     const mat = new THREE.MeshBasicMaterial({
-      color: BOSS_DEFS[0].slam.color,
+      color: 0xffffff,
       transparent: true,
       opacity: 0,
       depthWrite: false,
@@ -43,9 +57,13 @@ export class BossController {
   }
 
   reset() {
-    /** Id del boss vivo, o 0 si no hay ninguno. */
+    /** Id de la élite viva, o 0 si no hay ninguna. */
     this.bossId = 0
-    /** Cuántos bosses aparecieron en la partida. Escala al siguiente. */
+    /** Fila de BOSS_DEFS que está peleando, o -1. */
+    this.defIndex = -1
+    /** '' | 'MINI' | 'BOSS'. Lo lee el HUD para saber qué barra dibujar. */
+    this.tier = ''
+    /** Cuántas élites aparecieron en la partida. Es el índice del calendario. */
     this.spawned = 0
     this.defeated = 0
 
@@ -53,12 +71,12 @@ export class BossController {
     this.maxHp = 0
     this.name = ''
     /**
-     * Última posición conocida del boss. Al morir, es dónde cayó.
+     * Última posición conocida de la élite. Al morir, es dónde cayó.
      *
      * Se anota cada frame en vez de buscarla en la lista de muertes del
      * EnemyManager: esa lista no garantiza orden (las muertes se resuelven
      * recorriendo hacia atrás), así que "la última entrada" no siempre sería
-     * el boss. Copiar dos flotantes por frame es más barato que buscar.
+     * la correcta. Copiar dos flotantes por frame es más barato que buscar.
      */
     this.lastX = 0
     this.lastZ = 0
@@ -70,6 +88,9 @@ export class BossController {
     this._chargeLeft = 0
     this._slamWindup = 0
 
+    /** La próxima entrada del calendario: { at, key, loop }. */
+    this._next = eliteAt(0)
+
     this.slamRing.visible = false
     this.waves.spawnMultiplier = 1
   }
@@ -78,12 +99,17 @@ export class BossController {
     return this.bossId !== 0
   }
 
+  /** ¿Lo que está peleando es un jefe de verdad, o un minijefe? */
+  get isBoss() {
+    return this.tier === ELITE_TIER.BOSS
+  }
+
   /**
    * Fase de la embestida: '' | 'TELEGRAPH' | 'CHARGING'.
    *
    * Es de solo lectura y existe para que otros sistemas (el audio, y mañana los
    * efectos) puedan reaccionar al aviso sin espiar el estado interno ni pedirle
-   * al boss que les avise. El boss no sabe quién lo mira.
+   * a la élite que les avise. La élite no sabe quién la mira.
    */
   get chargePhase() {
     return this._chargeState
@@ -94,28 +120,41 @@ export class BossController {
     return this.slamRing.visible
   }
 
-  /** Momento en que aparece el próximo boss. */
+  /** Momento en que aparece la próxima élite. */
   get nextAt() {
-    return CONFIG.BOSS.FIRST_AT + this.spawned * CONFIG.BOSS.REPEAT_EVERY
+    return this._next.at
+  }
+
+  /** Nombre de la próxima, para poder anunciarla. */
+  get nextName() {
+    return ENEMY_DEFS[BOSS_DEFS[BOSS[this._next.key]].enemyType].name
   }
 
   update(delta) {
     if (this.active) this._updateFight(delta)
-    else if (this.waves.elapsed >= this.nextAt) this._spawn()
+    else if (this.waves.elapsed >= this._next.at) this._spawn()
   }
 
   _spawn() {
-    const def = BOSS_DEFS[0]
+    const def = BOSS_DEFS[BOSS[this._next.key]]
     const enemyDef = ENEMY_DEFS[def.enemyType]
+    const esJefe = def.tier === ELITE_TIER.BOSS
 
-    // "Limpia la arena" (GDD_v2 §4 Parte F): la basura muere, pero suelta sus
-    // gemas. El duelo empieza limpio y el jugador cobra lo que ya se había
-    // ganado, en vez de que se le evapore en pantalla.
-    this.enemies.queueWipe()
+    /**
+     * LAS DOS ÚNICAS LÍNEAS QUE SEPARAN UN JEFE DE UN MINIJEFE.
+     *
+     * El jefe "limpia la arena" (GDD_v2 §4 Parte F): la basura muere, pero
+     * suelta sus gemas, así que el duelo empieza limpio y el jugador cobra lo
+     * que ya se había ganado en vez de vérselo evaporar. El minijefe no limpia
+     * nada: aparece ENTRE la horda, que es todo su sentido.
+     */
+    if (esJefe) this.enemies.queueWipe()
 
-    // Aparece lejos, para que se lo vea venir.
+    // El jefe aparece lejos, para que se lo vea venir y el duelo tenga entrada.
+    // El minijefe aparece cerca, porque tiene que llegarte mezclado con la
+    // oleada y no anunciado desde el horizonte.
+    const dist = esJefe ? CONFIG.BOSS.SPAWN_DISTANCE : CONFIG.BOSS.MINI_SPAWN_DISTANCE
     const angle = Math.random() * Math.PI * 2
-    const dist = CONFIG.BOSS.SPAWN_DISTANCE
     const limit = CONFIG.WORLD.ARENA_SIZE / 2 - enemyDef.radius - 1
     let x = this.player.position.x + Math.cos(angle) * dist
     let z = this.player.position.z + Math.sin(angle) * dist
@@ -124,34 +163,51 @@ export class BossController {
     if (z > limit) z = limit
     else if (z < -limit) z = -limit
 
-    const hpMult = 1 + this.spawned * CONFIG.BOSS.HP_SCALE_PER_BOSS
+    /**
+     * La vida NO escala dentro de la primera vuelta del calendario.
+     *
+     * Los números de ENEMY_DEFS son una curva que alguien diseñó —el Bruto a
+     * los 40 s, el Coloso a los 385— y multiplicarlos por "cuántos ya
+     * salieron" la borraría: el cuarto minijefe pegaría más que el primer
+     * jefe. Solo escalan las vueltas siguientes, que ya no son contenido
+     * escrito sino tiempo extra.
+     */
+    const hpMult = 1 + this._next.loop * CONFIG.BOSS.HP_SCALE_PER_LOOP
     const i = this.enemies.spawn(def.enemyType, x, z, hpMult)
     if (i === -1) return // horda llena: se reintenta el frame siguiente
 
     this.bossId = this.enemies.id[i]
-    this.spawned++
+    this.defIndex = BOSS[this._next.key]
+    this.tier = def.tier
     this.maxHp = this.enemies.maxHp[i]
     this.hp = this.maxHp
     this.name = enemyDef.name
+    this.lastX = x
+    this.lastZ = z
 
     this._chargeTimer = def.charge ? def.charge.every : 0
-    this._slamTimer = def.slam.every
+    this._slamTimer = def.slam ? def.slam.every : 0
     this._chargeState = ''
+    this._slamWindup = 0
+    if (def.slam) this.slamRing.material.color.setHex(def.slam.color)
 
-    // Mientras dura el duelo el spawner afloja: pelear al boss adentro de una
-    // oleada completa no es difícil, es ruido.
-    this.waves.spawnMultiplier = CONFIG.BOSS.SPAWN_SLOWDOWN
+    // Mientras dura el duelo el spawner afloja: pelear al jefe adentro de una
+    // oleada completa no es difícil, es ruido. Con el minijefe pasa lo
+    // contrario y por eso no se toca — sale entre la horda a propósito.
+    if (esJefe) this.waves.spawnMultiplier = CONFIG.BOSS.SPAWN_SLOWDOWN
+
+    // El calendario se adelanta ACÁ y no al morir: así `nextAt` ya apunta a la
+    // siguiente durante toda la pelea, y si esta se demora, la que viene sale
+    // apenas cae. Ver el comentario de la clase.
+    this.spawned++
+    this._next = eliteAt(this.spawned)
   }
 
   _updateFight(delta) {
     const i = this.enemies.indexOfId(this.bossId)
 
     if (i === -1) {
-      // Murió: lo mató el sistema de daño normal, como a cualquier enemigo.
-      this.bossId = 0
-      this.defeated++
-      this.slamRing.visible = false
-      this.waves.spawnMultiplier = 1
+      this._endFight()
       return
     }
 
@@ -159,20 +215,38 @@ export class BossController {
     this.lastX = this.enemies.posX[i]
     this.lastZ = this.enemies.posZ[i]
 
-    const def = BOSS_DEFS[0]
-    // Las dos habilidades son OPCIONALES: un boss sin `charge` o sin `slam` en
-    // la tabla simplemente no la usa. Quitarle un ataque a un boss es borrar
-    // una clave, no tocar este archivo.
+    const def = BOSS_DEFS[this.defIndex]
+    // Las dos habilidades son OPCIONALES: una fila sin `charge` o sin `slam`
+    // simplemente no la usa. Quitarle un ataque a un jefe es borrar una clave,
+    // no tocar este archivo.
     if (def.charge) this._updateCharge(delta, i, def)
     if (def.slam) this._updateSlam(delta, i, def)
   }
 
   /**
+   * Murió: lo mató el sistema de daño normal, como a cualquier enemigo.
+   *
+   * Se limpia TODO el estado de pelea, no solo el id. Un golpe de área a medio
+   * cargar que sobreviviera a la muerte se resolvería sobre la élite siguiente,
+   * en el lugar donde había marcado el anillo la anterior.
+   */
+  _endFight() {
+    this.bossId = 0
+    this.defIndex = -1
+    this.tier = ''
+    this.defeated++
+    this._chargeState = ''
+    this._slamWindup = 0
+    this.slamRing.visible = false
+    this.waves.spawnMultiplier = 1
+  }
+
+  /**
    * Embestida.
    *
-   * No mueve al boss a mano: le sube la velocidad y deja que la persecución del
-   * EnemyManager haga el resto. Así la embestida respeta los límites de la arena
-   * y la colisión con el jugador sin duplicar nada de eso.
+   * No mueve a la élite a mano: le sube la velocidad y deja que la persecución
+   * del EnemyManager haga el resto. Así la embestida respeta los límites de la
+   * arena y la colisión con el jugador sin duplicar nada de eso.
    */
   _updateCharge(delta, i, def) {
     const c = def.charge
@@ -212,7 +286,7 @@ export class BossController {
    * Golpe de área: castiga quedarse pegado disparando.
    *
    * El anillo crece durante la carga y el daño cae cuando termina. La posición
-   * se fija al empezar, no al golpear: si siguiera al boss, esquivarlo sería
+   * se fija al empezar, no al golpear: si siguiera a la élite, esquivarlo sería
    * imposible.
    */
   _updateSlam(delta, i, def) {

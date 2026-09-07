@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { CONFIG } from '../config/GameConfig.js'
-import { ENEMY_DEFS } from '../config/EnemyDefs.js'
+import { ENEMY_DEFS, ENEMY_TYPE } from '../config/EnemyDefs.js'
 import { SpatialGrid } from './SpatialGrid.js'
 
 // Scratch a nivel de módulo. Se reutiliza en cada frame: dentro del loop no se
@@ -50,6 +50,15 @@ export class EnemyManager {
     /** Daño acumulado este frame, pendiente de resolver. Ver queueDamage(). */
     this._pending = new Float32Array(max)
     this._pendingCount = 0
+    /**
+     * ¿El daño pendiente es una limpieza de arena y no combate?
+     *
+     * Existe por el enemigo que se parte al morir: cuando el jefe limpia la
+     * arena, un Mitosis moriría dejando dos larvas y el duelo empezaría
+     * sucio, que es justo lo que la limpieza va a evitar. Partirse es una
+     * recompensa por matarlo, no algo que pase por decreto.
+     */
+    this._wiping = false
     /** 1 = tiene a alguien pegado adelante y no puede avanzar este frame. */
     this._blocked = new Uint8Array(max)
 
@@ -163,20 +172,54 @@ export class EnemyManager {
     this.hp[i] -= amount
     if (this.hp[i] > 0) return 0
 
-    const xp = ENEMY_DEFS[this.type[i]].xp
+    const def = ENEMY_DEFS[this.type[i]]
+    const xp = def.xp
 
     // Se anota dónde cayó ANTES de removerlo: después de _remove() ese índice
     // ya es de otro enemigo.
     const d = this.deathCount++
-    this.deathX[d] = this.posX[i]
-    this.deathZ[d] = this.posZ[i]
+    const x = (this.deathX[d] = this.posX[i])
+    const z = (this.deathZ[d] = this.posZ[i])
     this.deathXp[d] = xp
-    this.deathCoin[d] = ENEMY_DEFS[this.type[i]].coin
-    this.deathColor[d] = ENEMY_DEFS[this.type[i]].color
+    this.deathCoin[d] = def.coin
+    this.deathColor[d] = def.color
+
+    /**
+     * Con qué multiplicador de vida apareció, reconstruido de su vida máxima.
+     *
+     * Lo heredan las crías del que se parte. Sin esto, un Mitosis del minuto
+     * seis dejaría dos larvas de juguete y partirse dejaría de significar
+     * nada. Guardarlo en otro array serían 1600 bytes para un dato que ya
+     * está escrito en maxHp.
+     */
+    const mult = this.maxHp[i] / def.hp
 
     this._remove(i)
     this.killCount++
+
+    // Se parte DESPUÉS de sacarlo: las crías ocupan su hueco, así que los
+    // índices tienen que estar ya compactados.
+    if (def.splits && !this._wiping) this._split(def.splits, x, z, mult)
+
     return xp
+  }
+
+  /**
+   * Crías del enemigo que se parte al morir (ver el campo `splits`).
+   *
+   * Aparecen POR ENCIMA del índice que resolveDamage() está recorriendo, y
+   * ese recorrido va hacia atrás: no las visita en el mismo frame, así que no
+   * pueden heredar daño encolado ni morir dos veces. Es la misma razón por la
+   * que el swap-remove se recorre al revés.
+   */
+  _split(parte, x, z, hpMult) {
+    const tipo = ENEMY_TYPE[parte.into]
+    for (let n = 0; n < parte.count; n++) {
+      // Horda llena: no se parte y ya está. El techo es de memoria y manda.
+      if (this.count >= this.max) return
+      const a = (n / parte.count) * Math.PI * 2
+      this.spawn(tipo, x + Math.cos(a) * parte.spread, z + Math.sin(a) * parte.spread, hpMult)
+    }
   }
 
   /**
@@ -202,6 +245,7 @@ export class EnemyManager {
    * decreto no es hacer daño, y ahora el código lo distingue.
    */
   queueWipe() {
+    this._wiping = true
     for (let i = 0; i < this.count; i++) {
       if (this._pending[i] === 0) this._pendingCount++
       this._pending[i] += 1e9
@@ -226,7 +270,12 @@ export class EnemyManager {
    */
   resolveDamage() {
     this.deathCount = 0
-    if (this._pendingCount === 0) return 0
+    if (this._pendingCount === 0) {
+      // También acá: una limpieza sobre una arena vacía no deja nada
+      // pendiente, y la bandera se quedaría encendida para siempre.
+      this._wiping = false
+      return 0
+    }
 
     let xp = 0
     for (let i = this.count - 1; i >= 0; i--) {
@@ -240,6 +289,7 @@ export class EnemyManager {
     // murieron; se limpian acá para no arrastrarlo al próximo spawn.
     this._pending.fill(0, this.count)
     this._pendingCount = 0
+    this._wiping = false
     return xp
   }
 
@@ -284,6 +334,7 @@ export class EnemyManager {
   clear() {
     this.count = 0
     this.mesh.count = 0
+    this._wiping = false
     this.killCount = 0
     this.dmgToPriority = 0
     this.dmgToRest = 0

@@ -178,6 +178,27 @@
       transition: width 0.1s linear;
     }
 
+    /* El minijefe: más angosta, más fina y sin el dorado, que queda
+       reservado para el jefe. Se distinguen de un vistazo sin leer. */
+    #hud-boss.mini {
+      width: min(360px, 70vw);
+    }
+
+    #hud-boss.mini #hud-boss-name {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #cfe6f5;
+    }
+
+    #hud-boss.mini #hud-boss-bar {
+      height: 6px;
+      border-color: rgba(207, 230, 245, 0.35);
+    }
+
+    #hud-boss.mini #hud-boss-fill {
+      background: #cfe6f5;
+    }
+
     #hud-weapons {
       position: absolute;
       bottom: 20px;

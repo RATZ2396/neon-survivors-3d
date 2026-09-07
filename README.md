@@ -117,7 +117,74 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 | Metralleta | **Doble línea** | balas paralelas al costado, no abanico |
 | Metralleta | **Bala explosiva** | cada 6-12 balas, una estalla al impactar |
 
-El **empuje** de la onda expansiva y de Impacto no mueve a los `heavy` (el boss), a propósito: si el boss retrocediera con cada golpe la pelea se ganaría quedándose quieto.
+El **empuje** de la onda expansiva y de Impacto no mueve a los `heavy` (las élites y el Cazador), a propósito: si un jefe retrocediera con cada golpe la pelea se ganaría quedándose quieto.
+
+## Oleadas: la horda y las élites
+
+La partida tiene una forma, y son dos tablas:
+
+| | Dónde | Qué decide |
+|---|---|---|
+| `WAVE_STAGES` | `enemies/WaveManager.js` | qué basura aparece, cada cuánto y de a cuántos |
+| `ELITE_SCHEDULE` | `config/BossDefs.js` | qué élite aparece y en qué segundo |
+
+**El ciclo: horda → minijefe CON la horda → jefe casi solo.** Es la diferencia
+entre los dos escalones y lo único que los separa en el código son dos líneas
+de `BossController._spawn()`: el jefe limpia la arena y afloja el spawner ×12,
+el minijefe no toca ninguna de las dos cosas. Todo lo demás —la embestida, el
+golpe de área, el seguimiento por id, la barra del HUD— lo comparten.
+
+### La horda
+
+Seis tipos, y la proporción de drones **baja** con el tiempo mientras sube todo
+lo demás: la horda tardía no es la misma horda más grande, es otra horda.
+
+| Tipo | Qué aporta |
+|---|---|
+| **Drone** | la base |
+| **Runner** | rápido, pero siempre esquivable en línea recta (5.2 contra tus 6.0) |
+| **Tank** | frena las balas: escudo andante para el resto |
+| **Larva** | casi sin vida. Deja crecer la horda en cantidad sin que crezca la vida total |
+| **Mitosis** | al morir se parte en dos larvas: el único cuya muerte te empeora la situación |
+| **Cazador** | `heavy`: nada lo empuja y la multitud no lo bloquea, así que siempre llega |
+
+El Cazador existe contra la única estrategia dominante que quedaba —correr en
+círculos arrastrando a todos atrás—, que funcionaba justamente porque los
+enemigos se bloquean entre ellos.
+
+Las crías de Mitosis **heredan el multiplicador de vida del padre**,
+reconstruido de su `maxHp`. Sin eso, en el minuto seis se partiría en dos
+larvas de juguete y la mecánica dejaría de significar nada. Y **no se parte
+cuando el jefe limpia la arena**: partirse es la recompensa por matarlo, no
+algo que pase por decreto.
+
+### Las élites
+
+| | Escalón | Qué hace | Vida |
+|---|---|---|---|
+| **El Bruto** | minijefe | embiste | 650 |
+| **El Guardián** | minijefe | frena las balas y golpea el área | 950 |
+| **El Acechador** | minijefe | embiste rápido y avisa poco | 420 |
+| **The Cube King** | jefe | golpe de área | 2500 |
+| **El Segador** | jefe | el único que embiste **y** golpea el área | 3200 |
+| **El Coloso** | jefe | el golpe más grande y más seguido del juego | 5200 |
+
+Seis élites y **dos habilidades**. La variedad sale de combinarlas y de los
+números de cada una, no de escribir un ataque nuevo por jefe: una élite nueva
+son dos filas —el arquetipo en `EnemyDefs` y el comportamiento en `BossDefs`—
+y ni una línea de código.
+
+**Nunca hay dos élites a la vez.** Si la de turno sigue viva cuando le toca a
+la siguiente, la siguiente espera y sale apenas cae. Sin esa regla, un jugador
+lento juntaría minijefes hasta volver la pantalla ilegible — y peor, un jefe
+podría aparecer arriba de un minijefe y "el jefe pelea solo" dejaría de ser
+cierto.
+
+**La vida no escala dentro de la primera vuelta al calendario.** Los números de
+arriba son una curva que alguien diseñó —el Bruto a los 40 s, el Coloso a los
+385—; multiplicarlos por "cuántos ya salieron" la borraría y el cuarto minijefe
+pegaría más que el primer jefe. Solo escalan las vueltas siguientes, que ya no
+son contenido escrito sino tiempo extra.
 
 ## Entry point
 
@@ -144,7 +211,7 @@ src/
 │   ├── EnemyManager.js           la horda entera: datos + InstancedMesh
 │   ├── SpatialGrid.js            rejilla espacial, evita el O(n²)
 │   ├── WaveManager.js            qué aparece, cuándo y dónde
-│   └── BossController.js         aparición y ataques del boss
+│   └── BossController.js         aparición y ataques de las élites
 ├── combat/
 │   ├── WeaponSystem.js           el arma base: apuntado y disparo
 │   ├── ProjectileManager.js      pool de balas + colisión
@@ -163,9 +230,10 @@ src/
 ├── ui/StartMenu.js               perfil, taller y elección del arma base
 ├── ui/HUD.js                     vida, XP, tiempo, oleada y tu build
 ├── ui/UpgradeMenu.js             elección de mejora al subir de nivel
+├── ui/OptionsMenu.js             ajustes y controles, en un solo panel
 ├── ui/SkillLab.js                herramienta de diseño para evaluar habilidades (dev)
-├── config/EnemyDefs.js           arquetipos de enemigo (el boss es uno más)
-├── config/BossDefs.js            comportamiento del boss
+├── config/EnemyDefs.js           arquetipos de enemigo (las élites son unos más)
+├── config/BossDefs.js            qué hace cada élite + el calendario de la partida
 ├── config/WeaponDefs.js          las 3 armas base
 ├── config/SkillDefs.js           las habilidades, con sus 5 niveles
 ├── config/PickupDefs.js         lo que se junta del piso, y cuál se atrae

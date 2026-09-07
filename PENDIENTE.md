@@ -52,16 +52,44 @@ reemplazó a `GemManager`. El archivo viejo terminaba diciendo "es el tercer
 sistema con esta forma; si hiciera falta un cuarto, ahí sí valdría
 abstraerlo" — habrían hecho falta un cuarto y un quinto.
 
-## 3. Vida
+## 3. ~~Vida~~ — hecha
 
 Regeneración lenta mientras no recibas daño. Nada más que eso.
 
-## 4. Enemigos
+## 4. ~~Enemigos~~ — hecho, menos la bruja
 
-- **Minijefes**, básicos por ahora: uno que **corre y golpea**, y una **"bruja"
-  que tira algo a distancia**. Aparecen **dentro de la horda**, a propósito —
-  al revés que el boss, que pelea solo (ver `CONFIG.BOSS.SPAWN_SLOWDOWN`).
-- El boss actual se queda como está.
+La forma acordada —**horda → minijefe CON la horda → jefe casi solo**— ahora
+está escrita en una sola tabla, `ELITE_SCHEDULE` (`config/BossDefs.js`), en
+vez de en dos constantes que solo podían describir un jefe repetido para
+siempre con más vida.
+
+**~~Minijefes~~ — hechos.** Tres, y aparecen dentro de la horda, que no para:
+
+| | Qué hace | Vida |
+|---|---|---|
+| **El Bruto** | Embiste | 650 |
+| **El Guardián** | Frena las balas y golpea el área | 950 |
+| **El Acechador** | Embiste rápido y avisa poco | 420 |
+
+**~~Enemigos comunes nuevos~~ — hechos.** Tres, y ninguno dispara (ver
+"Descartado"):
+
+- **Larva**: casi sin vida, muchas. Deja crecer la horda en cantidad sin que
+  crezca la vida total, así la presión viene de que te rodean.
+- **Mitosis**: al morir se parte en dos larvas. El único cuya muerte empeora
+  tu situación inmediata, así que cambia a qué le disparás.
+- **Cazador**: es `heavy`, o sea que nada lo empuja y la multitud no lo
+  bloquea. Es el final de correr en círculos arrastrando a todos atrás.
+
+**~~Jefes distintos~~ — hechos.** El Cube King ya no es el único: están **El
+Segador** (el único que embiste y golpea el área) y **El Coloso** (el golpe
+más grande y más seguido del juego). Los tres salen del mismo controlador y de
+la misma tabla: un jefe nuevo son dos filas, no una clase.
+
+**Lo que queda del punto 4: la bruja.** Un minijefe que ataque a distancia
+necesita un pool de proyectiles enemigos, que hoy no existe — el único pool de
+balas es el del jugador y colisiona contra enemigos, no contra el jugador. Es
+trabajo de sistema, no de tabla, y por eso no entró con el resto.
 
 ## Nombres
 

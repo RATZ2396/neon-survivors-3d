@@ -260,15 +260,37 @@ export const CONFIG = {
     MAX_SKILLS: 4,
   },
 
+  /**
+   * ÉLITES: los minijefes y los jefes.
+   *
+   * CUÁNDO APARECE CADA UNO YA NO ESTÁ ACÁ. Estaba: `FIRST_AT: 60` y
+   * `REPEAT_EVERY: 120` alcanzaban para describir un solo jefe repetido para
+   * siempre con más vida. Con seis élites distintas y una forma acordada
+   * —horda, minijefe CON la horda, jefe casi solo— dos constantes no pueden
+   * decir nada, así que el calendario se mudó a ELITE_SCHEDULE (BossDefs.js),
+   * donde la partida entera se lee en una columna. Acá quedan los números que
+   * valen para todas por igual.
+   */
   BOSS: {
-    /** Segundo en que aparece el primero (GDD v1: 60s). */
-    FIRST_AT: 60,
-    /** Y cada cuánto vuelve a aparecer otro después de ese. */
-    REPEAT_EVERY: 120,
-    /** Aparece a esta distancia: lo suficientemente lejos para verlo venir. */
+    /** El jefe aparece a esta distancia: lejos, para verlo venir. */
     SPAWN_DISTANCE: 22,
-    /** Vida extra por cada boss ya aparecido (+80% el segundo, +160% el tercero...). */
-    HP_SCALE_PER_BOSS: 0.8,
+    /**
+     * El minijefe aparece mucho más cerca. Tiene que llegarte mezclado con la
+     * oleada, no anunciado desde el horizonte: esa es la diferencia entre un
+     * escalón intermedio y un duelo chico.
+     */
+    MINI_SPAWN_DISTANCE: 16,
+    /** Cada cuánto sale una élite una vez agotado el calendario escrito. */
+    LOOP_EVERY: 45,
+    /**
+     * Vida extra por VUELTA COMPLETA al calendario (+100% en la segunda).
+     *
+     * Antes era por élite aparecida, y con una sola no se notaba el problema:
+     * con nueve, el cuarto minijefe tendría más vida que el primer jefe y la
+     * curva escrita en ENEMY_DEFS no significaría nada. Solo escalan las
+     * vueltas, que ya no son contenido diseñado sino tiempo extra.
+     */
+    HP_SCALE_PER_LOOP: 1.0,
     /**
      * Cuánto se estira el intervalo del spawner durante el duelo.
      *
@@ -279,9 +301,10 @@ export const CONFIG = {
      * mataba mientras mirabas al boss.
      *
      * Con 12 queda un goteo: alguna gema para recoger y algo de presión, pero
-     * el duelo es un duelo. Aparecer adentro de una oleada entera es lo que va
-     * a hacer el MINIJEFE, que es otra cosa: ese sale entre la horda a
-     * propósito.
+     * el duelo es un duelo.
+     *
+     * SOLO SE APLICA A LOS JEFES. El minijefe no lo toca: aparecer adentro de
+     * una oleada entera es exactamente lo que hace y para lo que existe.
      */
     SPAWN_SLOWDOWN: 12,
   },

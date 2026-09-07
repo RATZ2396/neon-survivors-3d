@@ -157,14 +157,22 @@ export class HUD {
   }
 
   /**
-   * Barra del boss. Se muestra sola cuando hay uno vivo: no hace falta que
-   * nadie le avise al HUD que empezó el duelo.
+   * Barra de la élite. Se muestra sola cuando hay una viva: no hace falta
+   * que nadie le avise al HUD que empezó la pelea.
+   *
+   * El minijefe usa una barra más chica y sin el dorado del jefe. Si las dos
+   * se anunciaran igual, la barra grande dejaría de significar "esto es un
+   * jefe" y el jugador dejaría de creerle — que es lo único que hace que la
+   * aparición de un jefe se sienta distinta.
    */
   _updateBoss() {
     const active = this.boss.active
     if (this.bossBox.hidden !== !active) {
       this.bossBox.hidden = !active
-      if (active) this.bossName.textContent = this.boss.name
+      if (active) {
+        this.bossName.textContent = this.boss.name
+        this.bossBox.classList.toggle('mini', !this.boss.isBoss)
+      }
     }
     if (!active) return
 
