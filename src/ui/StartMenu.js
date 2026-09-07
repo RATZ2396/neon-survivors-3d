@@ -55,7 +55,8 @@ export class StartMenu {
         <div class="sshop" data-shop></div>
         <div class="sfoot">
           <button class="splay" data-act="play">JUGAR</button>
-          <p class="shint">1-3 para elegir · Enter para empezar · WASD para moverte · M para silencio · el arma dispara sola</p>
+          <p class="shint shint-pc">1-3 para elegir · Enter para empezar · WASD para moverte · M para silencio · el arma dispara sola</p>
+          <p class="shint shint-touch">Tocá un arma para elegirla · movete con el joystick · el arma dispara sola</p>
         </div>
       </div>
     `

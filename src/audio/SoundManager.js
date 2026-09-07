@@ -74,6 +74,18 @@ export class SoundManager {
     this._noise = buf
   }
 
+  /**
+   * Apaga el audio sin tocar la preferencia del jugador.
+   *
+   * Es lo que hay que hacer cuando la pestaña se va a segundo plano o entra
+   * una publicidad. `setMuted` no sirve para eso: pisaría lo que el jugador
+   * eligió con la M y habría que acordarse de restaurarlo. Un contexto
+   * suspendido no suena, no gasta CPU, y `unlock()` lo devuelve como estaba.
+   */
+  suspend() {
+    if (this.ctx && this.ctx.state === 'running') this.ctx.suspend()
+  }
+
   setMuted(muted) {
     this.muted = muted
     if (this.master) this.master.gain.value = muted ? 0 : this.volume

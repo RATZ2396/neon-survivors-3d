@@ -5,6 +5,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Neon Survivors 3D</title>
+  <!-- SVG embebido: un archivo menos que subir y un pedido menos que hacer.
+       Sin esto el navegador pide /favicon.ico y se come un 404 en cada carga. -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%230d1117'/><path d='M16 4l10 12-10 12L6 16z' fill='%2339d0ff'/></svg>" />
   <style>
     * {
       margin: 0;
@@ -269,6 +272,49 @@
         width: 88px;
         height: 54px;
       }
+
+      /* Medido a 375px: el botón de sonido llegaba a 398px y dos botones de
+         compra del taller a 392 y 388. Quedaban fuera de la pantalla y no
+         se podían tocar. */
+
+      /* El título se cortaba: 14 letras a 34px con 8px de separación no
+         entran en 375. */
+      .smenu h1 {
+        font-size: clamp(20px, 7vw, 34px);
+        letter-spacing: clamp(2px, 1.4vw, 8px);
+      }
+
+      .shead {
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      /* Cuatro columnas fijas no entran. Pasa a dos filas: arriba el nombre
+         y qué hace, abajo los niveles y el precio. */
+      .trow {
+        grid-template-columns: 1fr auto;
+        gap: 4px 10px;
+        text-align: left;
+      }
+
+      .tdesc {
+        grid-column: 1 / -1;
+      }
+
+      .tbuy {
+        min-width: 64px;
+        padding: 8px 10px;
+      }
+
+      /* El HUD se corre a la izquierda para dejarle el rincón al botón de
+         pausa: centrado, la barra de vida le pasaba por debajo. */
+      #hud-top {
+        left: 12px;
+        transform: none;
+        width: calc(100vw - 80px);
+        text-align: left;
+      }
+
     }
 
     /* ── Menú de inicio: elección del arma base ────────────────────────── */
@@ -1015,7 +1061,103 @@
       font-size: 12px;
     }
 
-    /* Zona del joystick virtual — solo en pantallas chicas */
+    /* ── Pantalla de carga ──────────────────────────────────────────────
+       Está en el HTML y no la dibuja el juego, a propósito: tiene que
+       aparecer ANTES de que baje el bundle, que es justo el rato en el que
+       no hay nada. Si la dibujara el juego llegaría tarde para lo único
+       que sirve.
+
+       La barra es indeterminada y no muestra porcentaje. Un porcentaje
+       haría falta medir la descarga, y como el bundle entra por un <script>
+       normal no hay nada que medir: cualquier número sería inventado. */
+    #loader {
+      position: fixed;
+      inset: 0;
+      z-index: 500;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 18px;
+      background: #0d1117;
+      color: #39d0ff;
+      transition: opacity 0.35s ease;
+    }
+
+    #loader.done {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #loader .lgo {
+      font-size: clamp(18px, 6vw, 34px);
+      letter-spacing: clamp(3px, 1.6vw, 8px);
+    }
+
+    #loader .lbar {
+      position: relative;
+      width: min(260px, 60vw);
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(57, 208, 255, 0.15);
+      overflow: hidden;
+    }
+
+    #loader .lbar i {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 40%;
+      border-radius: 999px;
+      background: #39d0ff;
+      animation: lslide 1.1s ease-in-out infinite;
+    }
+
+    @keyframes lslide {
+      from { transform: translateX(-110%); }
+      to { transform: translateX(260%); }
+    }
+
+    #loader .ltxt {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #566d80;
+    }
+
+    /* ── Pausa táctil ───────────────────────────────────────────────────
+       En un teléfono no hay Escape, y pausar deja de ser un lujo cuando
+       entra una publicidad. 44px es el mínimo que se acierta con el dedo.
+
+       El z-index por debajo de los menús (200-400) es lo que lo hace
+       aparecer solo mientras jugás, sin que nadie tenga que encenderlo y
+       apagarlo: cualquier menú abierto lo tapa. Mismo truco que el
+       joystick. */
+    #touch-pause {
+      position: fixed;
+      top: 10px;
+      right: 10px;
+      z-index: 95;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      width: 44px;
+      height: 44px;
+      /* Escondido por defecto; lo enciende el bloque táctil de más abajo. */
+      border: 1px solid rgba(127, 155, 176, 0.35);
+      border-radius: 10px;
+      background: rgba(13, 17, 23, 0.6);
+      cursor: pointer;
+    }
+
+    #touch-pause i {
+      width: 4px;
+      height: 15px;
+      border-radius: 1px;
+      background: #cfe6f5;
+    }
+
+    /* Zona del joystick virtual */
     #zone_joystick {
       position: fixed;
       bottom: 28px;
@@ -1023,11 +1165,46 @@
       width: 150px;
       height: 150px;
       z-index: 90;
+      display: none;
     }
 
-    @media (min-width: 769px) {
+    /* Las pistas de control: por defecto las del teclado. */
+    .shint-touch {
+      display: none;
+    }
+
+    /* ── LO TÁCTIL, TODO JUNTO Y POR CAPACIDAD ──────────────────────────
+
+       Esto estaba atado a `max-width: 768px` y era un bug de los graves: un
+       teléfono ACOSTADO mide 812 de ancho, así que al rotarlo desaparecía el
+       joystick y el jugador se quedaba sin poder moverse. Medido a 812x375:
+       joystick `display: none`, botón de pausa `display: none`, y ninguna
+       otra forma de mover al personaje.
+
+       El ancho nunca fue la pregunta correcta. La pregunta es si hay un
+       mouse, y eso se pregunta con `hover: none` y `pointer: coarse`. Se
+       deja además el corte por ancho para poder probar los controles
+       táctiles achicando la ventana en una computadora, que es como se
+       encontró esto. */
+    @media (hover: none) and (pointer: coarse), (max-width: 768px) {
       #zone_joystick {
+        display: block;
+      }
+
+      #touch-pause {
+        display: flex;
+      }
+
+      /* Se cambian las dos juntas, en el mismo bloque: si cada una
+         dependiera de su propia condición, una ventana angosta en una
+         computadora podría esconder las dos y dejar al jugador sin ninguna
+         instrucción. */
+      .shint-pc {
         display: none;
+      }
+
+      .shint-touch {
+        display: block;
       }
     }
 
@@ -1044,8 +1221,16 @@
 </head>
 
 <body>
+  <!-- Se borra sola cuando hay un frame dibujado. Ver src/main.js. -->
+  <div id="loader">
+    <div class="lgo">NEON SURVIVORS</div>
+    <div class="lbar"><i></i></div>
+    <div class="ltxt">cargando</div>
+  </div>
+
   <div id="app"></div>
   <div id="zone_joystick"></div>
+  <button id="touch-pause" aria-label="Pausa"><i></i><i></i></button>
 
   <!-- Un solo script de juego. Sin excepciones (GDD_v2 §1). -->
   <script type="module" src="/src/main.js"></script>

@@ -96,10 +96,14 @@ export class PostFX {
   _degrade() {
     this.degraded = true
     this.setEnabled(false)
-    console.warn(
-      `[PostFX] bloom apagado: menos de ${CONFIG.VFX.DEGRADE_FPS} fps durante ` +
-        `${CONFIG.VFX.DEGRADE_SECONDS}s. El presupuesto está en CONFIG.VFX.`,
-    )
+    // Solo en desarrollo: es información para quien balancea el VFX, no para
+      // el jugador. En un portal, la consola del juego la lee su equipo de QA.
+    if (import.meta.env?.DEV) {
+      console.warn(
+        `[PostFX] bloom apagado: menos de ${CONFIG.VFX.DEGRADE_FPS} fps durante ` +
+          `${CONFIG.VFX.DEGRADE_SECONDS}s. El presupuesto está en CONFIG.VFX.`,
+      )
+    }
   }
 
   setEnabled(on) {

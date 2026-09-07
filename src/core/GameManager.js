@@ -174,6 +174,29 @@ export class GameManager {
     this._onKey = this._onKey.bind(this)
     window.addEventListener('keydown', this._onKey)
 
+    /**
+     * PERDER EL FOCO PAUSA LA PARTIDA.
+     *
+     * En un portal el juego vive dentro de un iframe y no controla lo que
+     * pasa alrededor: el jugador cambia de pestaña, entra una publicidad,
+     * suena una llamada. Sin esto la horda le sigue pegando a alguien que
+     * no está mirando, y el audio sigue sonando desde una pestaña que
+     * parece apagada — la queja número uno de cualquier juego web.
+     *
+     * Vuelve pausado A PROPÓSITO: retomar solo tiraría al jugador de vuelta
+     * a una pelea que dejó a medias sin darle un segundo para ubicarse.
+     *
+     * Acá es donde van a engancharse después los avisos del SDK del portal
+     * (empieza el aviso -> pausar y callar, termina -> devolver el sonido):
+     * el trabajo ya está hecho, solo cambia quién lo dispara.
+     */
+    this._onVisibility = this._onVisibility.bind(this)
+    document.addEventListener('visibilitychange', this._onVisibility)
+
+    // Pausa para dedos. En un teléfono no hay Escape.
+    this._touchPause = document.getElementById('touch-pause')
+    this._touchPause?.addEventListener('click', () => this.pause())
+
     // Un solo enganche para desbloquear el audio: cualquier gesto sirve, y
     // unlock() es idempotente, así que no hace falta desengancharlo.
     this._unlockAudio = () => this.sound.unlock()
@@ -243,6 +266,21 @@ export class GameManager {
     // R reintenta con la misma arma; T vuelve al taller.
     if (e.code === 'KeyR') this.startRun(this.startMenu.selected)
     else if (e.code === 'KeyT') this.toMenu()
+  }
+
+  _onVisibility() {
+    if (document.hidden) {
+      this.pause()
+      // Suspender el contexto es más honesto que silenciarlo: silenciar
+      // pisaría la preferencia del jugador y habría que acordarse de
+      // restaurarla. Suspendido no suena y no gasta nada.
+      this.sound.suspend()
+      return
+    }
+
+    // Al volver NO se reanuda la partida, solo el audio: el jugador decide
+      // cuándo seguir, desde el menú de pausa que quedó abierto.
+    this.sound.unlock()
   }
 
   _toggleSound() {

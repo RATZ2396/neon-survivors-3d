@@ -51,5 +51,17 @@ function grabador() {
 }
 
 export default {
+  /**
+   * RUTAS RELATIVAS. Es la línea que decide si el juego arranca o no en un
+   * portal.
+   *
+   * Por defecto Vite escribe `src="/assets/index-xxx.js"`, con barra
+   * inicial. Eso funciona servido desde la raíz de un dominio (Vercel) y
+   * falla en todos lados donde el juego vive en una subcarpeta — que es
+   * exactamente cómo lo sirven CrazyGames, GameDistribution y Y8 cuando
+   * subís el ZIP. La barra manda el pedido a la raíz del portal, no a la
+   * de tu juego: 404 y pantalla negra, sin ningún error visible.
+   */
+  base: './',
   plugins: [grabador()],
 }
