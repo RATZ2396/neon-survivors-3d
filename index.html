@@ -199,6 +199,52 @@
       background: #cfe6f5;
     }
 
+    /* ── El cartel de controles ─────────────────────────────────────────
+
+       Arriba de las tarjetas del arma y centrado: es el único lugar de la
+       pantalla que ya está reservado para la interfaz y donde no tapa ni la
+       vida (arriba) ni el joystick (abajo a la izquierda).
+
+       Recibe eventos aunque el HUD no: tocarlo abre la lista completa. En un
+       teléfono es el gesto más natural — el que quiere saber más, toca lo que
+       le está hablando. */
+    #hud-hints {
+      position: absolute;
+      bottom: 86px;
+      left: 50%;
+      transform: translateX(-50%);
+      max-width: 92vw;
+      padding: 8px 14px;
+      border: 1px solid rgba(127, 155, 176, 0.22);
+      border-radius: 999px;
+      background: rgba(13, 17, 23, 0.72);
+      font-size: 11px;
+      line-height: 1.5;
+      text-align: center;
+      color: #7f9bb0;
+      pointer-events: auto;
+      cursor: pointer;
+      /* Se va de a poco. Un cartel que desaparece de golpe se lee como un
+         parpadeo y el jugador cree que se rompió algo. */
+      opacity: 1;
+      transition: opacity 0.8s ease-out;
+    }
+
+    #hud-hints[hidden] {
+      display: none !important;
+    }
+
+    #hud-hints.gone {
+      opacity: 0;
+      /* Ya invisible: no puede seguir robando toques. */
+      pointer-events: none;
+    }
+
+    #hud-hints b {
+      color: #cfe6f5;
+      font-weight: 600;
+    }
+
     #hud-weapons {
       position: absolute;
       bottom: 20px;
@@ -1430,6 +1476,28 @@
       background: #cfe6f5;
     }
 
+    /* El "?" al lado de la pausa: mismo tamaño, misma capa, mismas reglas.
+       En un teléfono no hay tecla H y sin esto ver los controles costaría
+       tres toques (pausa → ajustes → controles). */
+    #touch-help {
+      position: fixed;
+      top: 10px;
+      right: 62px;
+      z-index: 95;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: 1px solid rgba(127, 155, 176, 0.35);
+      border-radius: 10px;
+      background: rgba(13, 17, 23, 0.6);
+      color: #cfe6f5;
+      font: inherit;
+      font-size: 17px;
+      cursor: pointer;
+    }
+
     /* Zona del joystick virtual */
     #zone_joystick {
       position: fixed;
@@ -1464,8 +1532,30 @@
         display: block;
       }
 
-      #touch-pause {
+      #touch-pause,
+      #touch-help {
         display: flex;
+      }
+
+      /* EL CARTEL SE CORRE DEL JOYSTICK.
+
+         Centrado abajo se montaba encima de la zona del joystick (150x150 en
+         la esquina inferior izquierda) y, como el cartel recibe toques para
+         abrir los controles, se comía el dedo del jugador justo en los doce
+         segundos en que está aprendiendo a moverse. Medido a 375x812: el
+         cartel iba de x=94 a x=281 y el joystick de x=28 a x=178.
+
+         Se corre en HORIZONTAL y no en vertical a propósito: subirlo lo
+         sacaba del joystick en vertical pero en un teléfono acostado (375 de
+         alto) lo mandaba contra la barra del jefe. El costado libre está
+         libre en las dos orientaciones. */
+      #hud-hints {
+        left: auto;
+        right: 8px;
+        transform: none;
+        max-width: calc(100% - 210px);
+        font-size: 10px;
+        text-align: right;
       }
 
       /* Se cambian las dos juntas, en el mismo bloque: si cada una
@@ -1503,6 +1593,7 @@
 
   <div id="app"></div>
   <div id="zone_joystick"></div>
+  <button id="touch-help" aria-label="Controles">?</button>
   <button id="touch-pause" aria-label="Pausa"><i></i><i></i></button>
 
   <!-- Un solo script de juego. Sin excepciones (GDD_v2 §1). -->

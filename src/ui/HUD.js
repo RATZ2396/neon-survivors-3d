@@ -1,4 +1,5 @@
 import { SKILL_DEFS } from '../config/SkillDefs.js'
+import { CONFIG } from '../config/GameConfig.js'
 
 /**
  * HUD — lo que el jugador necesita saber mientras juega.
@@ -31,6 +32,8 @@ export class HUD {
     this._lastXp = -1
     this._lastReadiness = -2
     this._lastBoss = -1
+    /** Segundos que le quedan al cartel de controles. 0 = ya no está. */
+    this._hintsLeft = 0
 
     this._build()
   }
@@ -56,6 +59,16 @@ export class HUD {
         <div id="hud-boss-bar"><div id="hud-boss-fill"></div></div>
       </div>
       <div id="hud-weapons"></div>
+      <div id="hud-hints" hidden>
+        <span class="shint-pc">
+          <b>WASD</b> moverte · <b>Espacio</b> apuntar a mano · <b>Esc</b> pausa ·
+          <b>M</b> silencio · <b>H</b> todos los controles
+        </span>
+        <span class="shint-touch">
+          <b>Joystick</b> para moverte · el arma dispara sola ·
+          <b>?</b> para ver los controles
+        </span>
+      </div>
     `
     document.body.appendChild(root)
 
@@ -69,6 +82,11 @@ export class HUD {
     this.bossFill = root.querySelector('#hud-boss-fill')
 
     this.slots = root.querySelector('#hud-weapons')
+    this.hints = root.querySelector('#hud-hints')
+    // Tocar el cartel abre la lista completa: el que quiere saber más toca lo
+    // que le está hablando. En un teléfono es el gesto natural y ahorra el
+    // viaje por el menú de pausa.
+    this.hints.addEventListener('click', () => this.onHelp?.())
     this.root = root
     this._builtLoadout = -1
   }
@@ -131,7 +149,37 @@ export class HUD {
     this.weaponFill = this.slots.querySelector('.weapon .wcool i')
   }
 
+  /**
+   * El cartel de controles, al empezar la partida.
+   *
+   * POR QUÉ ACÁ Y NO SOLO EN EL MENÚ DE AJUSTES. La lista completa está en
+   * Ajustes → Controles, pero nadie abre los ajustes ANTES de jugar: se
+   * abren cuando algo ya salió mal. El jugador de un portal llega, aprieta
+   * jugar, y tiene que enterarse de que existe la pausa mientras juega, no
+   * después de morirse buscándola.
+   *
+   * Se va solo. Un cartel permanente deja de leerse a los diez segundos y
+   * desde ahí solo tapa la pantalla; para volver a verlo están la tecla H y
+   * el botón "?".
+   */
+  showHints() {
+    this._hintsLeft = CONFIG.UI.HINTS_SECONDS
+    this.hints.hidden = false
+    this.hints.classList.remove('gone')
+  }
+
+  hideHints() {
+    if (this._hintsLeft === 0) return
+    this._hintsLeft = 0
+    this.hints.classList.add('gone')
+  }
+
   update(delta) {
+    if (this._hintsLeft > 0) {
+      this._hintsLeft -= delta
+      if (this._hintsLeft <= 0) this.hideHints()
+    }
+
     this._updateWeapons()
     this._updateHp()
     this._updateXp()

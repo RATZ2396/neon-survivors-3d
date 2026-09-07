@@ -159,8 +159,18 @@ export class GameManager {
       }),
       cambiar: (clave, valor) => this._cambiarAjuste(clave, valor),
       onWipe: () => this._wipeProfile(),
-      onClose: () => this.options.hide(),
+      onClose: () => this._closeOptions(),
     })
+
+    /**
+     * ¿La pausa la puso el panel, o el jugador?
+     *
+     * Consultar los controles con H en mitad de una partida tiene que
+     * devolverte a la partida, no al menú de pausa: pediste mirar algo, no
+     * frenar. Pero la simulación TIENE que congelarse mientras mirás, o la
+     * horda te come mientras leés qué tecla es la pausa.
+     */
+    this._pausedByOptions = false
 
     this.pauseMenu = new PauseMenu({
       onResume: () => this.resume(),
@@ -200,6 +210,7 @@ export class GameManager {
     // esto, en un teléfono morirse no tiene salida.
     this.hud.onRetry = () => this.startRun(this.startMenu.selected)
     this.hud.onShop = () => this.toMenu()
+    this.hud.onHelp = () => this._openControls()
 
     this.monitor = new PerformanceMonitor()
 
@@ -243,6 +254,11 @@ export class GameManager {
     // Pausa para dedos. En un teléfono no hay Escape.
     this._touchPause = document.getElementById('touch-pause')
     this._touchPause?.addEventListener('click', () => this.pause())
+
+    // Y el "?" al lado. En un teléfono no hay tecla H, así que sin este
+    // botón la única forma de ver los controles sería pausar y entrar a los
+    // ajustes: tres toques para leer con qué se juega.
+    document.getElementById('touch-help')?.addEventListener('click', () => this._openControls())
 
     // Un solo enganche para desbloquear el audio: cualquier gesto sirve, y
     // unlock() es idempotente, así que no hace falta desengancharlo.
@@ -292,7 +308,7 @@ export class GameManager {
     // lugar de pausar o despausar, que cambiaría el estado de la partida sin
     // que nadie lo haya pedido.
     if (this.options.visible) {
-      if (e.code === 'Escape') this.options.hide()
+      if (e.code === 'Escape' || e.code === 'KeyH') this._closeOptions()
       else if (e.code === 'KeyM') this._toggleSound()
       return
     }
@@ -308,6 +324,14 @@ export class GameManager {
     if (e.code === 'Escape' || e.code === 'KeyP') {
       if (this.state === GAME_STATE.PLAYING) this.pause()
       else if (this.state === GAME_STATE.PAUSED) this.resume()
+      return
+    }
+
+    // Los controles, sin pasar por los ajustes. En un juego de portal el
+    // jugador no viene de leer un manual: la tecla tiene que estar donde
+    // se la busca.
+    if (e.code === 'KeyH') {
+      this._openControls()
       return
     }
 
@@ -456,6 +480,30 @@ export class GameManager {
     this.state = GAME_STATE.PLAYING
   }
 
+  /** Abre la lista de controles desde donde sea, congelando la partida. */
+  _openControls() {
+    if (this.options.visible) return
+    if (this.state === GAME_STATE.PLAYING) {
+      this.pause()
+      this._pausedByOptions = true
+    }
+    this.options.show('controles')
+  }
+
+  /**
+   * Cierra el panel. Si la pausa la había puesto él, devuelve la partida.
+   *
+   * Es la diferencia entre "pausé para mirar algo" y "pausé": dejar al
+   * jugador en el menú de pausa después de una consulta de dos segundos lo
+   * obliga a un clic más para volver a lo que estaba haciendo.
+   */
+  _closeOptions() {
+    this.options.hide()
+    if (!this._pausedByOptions) return
+    this._pausedByOptions = false
+    this.resume()
+  }
+
   _upgradeContext() {
     return {
       player: this.player,
@@ -564,6 +612,7 @@ export class GameManager {
     this.profile.save()
     this.startMenu.hide()
     this.hud.hideGameOver()
+    this.hud.showHints()
     this.state = GAME_STATE.PLAYING
     this.events.reset()
     this.recorder?.iniciar(this)

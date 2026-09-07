@@ -334,6 +334,16 @@ export const CONFIG = {
 
   UI: {
     /**
+     * Segundos que dura el cartel de controles al empezar la partida.
+     *
+     * Tiene que durar lo suficiente para leerlo con la horda encima y lo
+     * bastante poco para no volverse parte del decorado: un cartel que no se
+     * va deja de leerse a los diez segundos y a partir de ahí solo tapa.
+     * Después de que se va, la tecla H y el botón "?" siguen estando.
+     */
+    HINTS_SECONDS: 12,
+
+    /**
      * Números flotantes a la vez. Si se llena, se pisa el más viejo: acá lo
      * último que pasó es lo que importa (al revés que en las partículas, donde
      * lo nuevo se descarta porque son decoración).
