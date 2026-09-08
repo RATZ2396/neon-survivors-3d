@@ -2102,17 +2102,20 @@ describe('Escuadrón', () => {
 })
 
 // ═══════════════════════════════════════════════════════════════════════════
-describe('El escuadrón entero tiene cuerpo', () => {
+describe('El escuadrón: un hitbox, una sola vida', () => {
   /**
-   * Un cuerpo cualquiera del escuadrón.
+   * Un cuerpo del escuadrón.
    *
    * El de verdad construye un soldado, o sea WebGL. Lo que importa acá es el
-   * CONTRATO —position, radius, invulnTimer, isDead y takeDamage()—, que es
-   * todo lo que la horda y el daño por contacto le piden a un cuerpo. Si
-   * mañana un compañero deja de cumplirlo, estos tests siguen pasando y el
-   * juego no: por eso Companion se escribió contra esta misma forma.
+   * CONTRATO: la horda y el daño por contacto solo le piden `position` y
+   * `radius` a un compañero. La vida —`invulnTimer`, `isDead`, `takeDamage`—
+   * la tiene UNO SOLO, el jugador, y es la del escuadrón entero.
    */
-  function cuerpo(x, z, hp = CONFIG.SQUAD.MAX_HP) {
+  function companero(x, z) {
+    return { position: { x, y: 0, z }, radius: CONFIG.PLAYER.RADIUS }
+  }
+
+  function jugador(x, z, hp = 100) {
     return {
       position: { x, y: 0, z },
       radius: CONFIG.PLAYER.RADIUS,
@@ -2132,59 +2135,83 @@ describe('El escuadrón entero tiene cuerpo', () => {
     }
   }
 
-  test('la horda le pega al compañero, no solo al jugador', () => {
-    // Eran fantasmas: los enemigos les pasaban por adentro y no recibían
-    // nada. Un escuadrón en el que solo uno puede morir no es un escuadrón.
+  test('tocar a un compañero es tocarte a vos', () => {
+    // Es la regla entera: el escuadrón tiene un hitbox repartido en tres
+    // cuerpos y una sola barra. Un enemigo lejísimos del jugador, pegado al
+    // compañero, te tiene que doler igual.
     const e = new EnemyManager(escena)
-    const yo = cuerpo(0, 0, 100)
-    const companero = cuerpo(10, 0)
-    const contacto = new ContactDamage([yo, companero], e)
+    const yo = jugador(0, 0)
+    const otro = companero(10, 0)
+    const contacto = new ContactDamage([yo, otro], e)
 
-    e.spawn(ENEMY_TYPE.NORMAL, 10, 0) // encima del compañero, lejos de mí
-    contacto.update(0.016)
-
-    expect(companero.hp).toBeLessThan(CONFIG.SQUAD.MAX_HP)
-    expect(yo.hp).toBe(100)
-  })
-
-  test('duele el más fuerte de los que lo tocan, no la suma', () => {
-    // Misma regla que para el jugador: sumar a todos los que te tocan escala
-    // de forma explosiva con el tamaño de la horda.
-    const e = new EnemyManager(escena)
-    const c = cuerpo(0, 0)
-    const contacto = new ContactDamage([c], e)
-
-    e.spawn(ENEMY_TYPE.NORMAL, 0, 0)
-    e.spawn(ENEMY_TYPE.TANK, 0, 0)
-    contacto.update(0.016)
-
-    const tanque = ENEMY_DEFS[ENEMY_TYPE.TANK].damage
-    expect(c.hp).toBeCloseTo(CONFIG.SQUAD.MAX_HP - tanque, 1e-6)
-  })
-
-  test('la invulnerabilidad es de cada uno', () => {
-    // Si fuera compartida, que te toquen a vos volvería inmune al compañero.
-    const e = new EnemyManager(escena)
-    const yo = cuerpo(0, 0, 100)
-    const companero = cuerpo(10, 0)
-    const contacto = new ContactDamage([yo, companero], e)
-
-    e.spawn(ENEMY_TYPE.NORMAL, 0, 0)
     e.spawn(ENEMY_TYPE.NORMAL, 10, 0)
     contacto.update(0.016)
 
+    expect(yo.hp).toBe(100 - ENEMY_DEFS[ENEMY_TYPE.NORMAL].damage)
+  })
+
+  test('un compañero no tiene vida propia y no se puede caer solo', () => {
+    // Con vida propia se morían: medido en una partida real, los dos duraron
+    // 30 y 34 segundos mientras el jugador terminaba con 53 de 100. No podés
+    // esquivar por ellos, así que cobrarles una barra aparte es cobrar por
+    // algo que no se puede jugar.
+    const otro = companero(5, 0)
+    expect('hp' in otro).toBe(false)
+    expect('takeDamage' in otro).toBe(false)
+  })
+
+  test('es UNA barra: dos cuerpos tocados en el mismo frame cuentan una vez', () => {
+    // Si cada cuerpo cobrara por su cuenta, con tres cuerpos rodeados
+    // cobrarías hasta el triple por segundo y el hitbox grande sería una
+    // condena en vez de un detalle.
+    const e = new EnemyManager(escena)
+    const yo = jugador(0, 0)
+    const otro = companero(10, 0)
+    const contacto = new ContactDamage([yo, otro], e)
+
+    e.spawn(ENEMY_TYPE.NORMAL, 0, 0) // encima tuyo
+    e.spawn(ENEMY_TYPE.NORMAL, 10, 0) // encima del compañero
+    contacto.update(0.016)
+
+    expect(yo.hp).toBe(100 - ENEMY_DEFS[ENEMY_TYPE.NORMAL].damage)
+    expect(contacto.hits).toBe(1)
+  })
+
+  test('y duele el más fuerte de todos los que tocan a cualquiera', () => {
+    const e = new EnemyManager(escena)
+    const yo = jugador(0, 0)
+    const otro = companero(10, 0)
+    const contacto = new ContactDamage([yo, otro], e)
+
+    e.spawn(ENEMY_TYPE.NORMAL, 0, 0) // el drone te toca a vos
+    e.spawn(ENEMY_TYPE.TANK, 10, 0) // el tanque toca al compañero
+    contacto.update(0.016)
+
+    expect(yo.hp).toBe(100 - ENEMY_DEFS[ENEMY_TYPE.TANK].damage)
+  })
+
+  test('la invulnerabilidad también es una sola', () => {
+    const e = new EnemyManager(escena)
+    const yo = jugador(0, 0)
+    const otro = companero(10, 0)
+    const contacto = new ContactDamage([yo, otro], e)
+    e.spawn(ENEMY_TYPE.NORMAL, 10, 0)
+
+    contacto.update(0.016)
+    const tras = yo.hp
     expect(yo.invulnTimer).toBeGreaterThan(0)
-    expect(companero.invulnTimer).toBeGreaterThan(0)
-    expect(yo.hp).toBeLessThan(100)
-    expect(companero.hp).toBeLessThan(CONFIG.SQUAD.MAX_HP)
+
+    // Mientras dure la ventana no cobra de nuevo, la toquen donde la toquen.
+    contacto.update(0.016)
+    expect(yo.hp).toBe(tras)
   })
 
   test('la horda no atraviesa a un compañero', () => {
     const e = new EnemyManager(escena)
-    const companero = cuerpo(5, 0)
+    const otro = companero(5, 0)
     e.spawn(ENEMY_TYPE.NORMAL, 5, 0) // exactamente encima
 
-    e.update(0.016, { x: 0, y: 0, z: 0 }, [companero])
+    e.update(0.016, { x: 0, y: 0, z: 0 }, [otro])
 
     const d = Math.hypot(e.posX[0] - 5, e.posZ[0] - 0)
     const minimo = CONFIG.PLAYER.RADIUS + ENEMY_DEFS[ENEMY_TYPE.NORMAL].radius
@@ -2206,19 +2233,19 @@ describe('El escuadrón entero tiene cuerpo', () => {
     expect(d).toBeGreaterThan(minimo - 0.001)
   })
 
-  test('un cuerpo caído deja de recibir golpes', () => {
+  test('muerto el jugador, el escuadrón deja de recibir', () => {
     const e = new EnemyManager(escena)
-    const c = cuerpo(0, 0, 5)
-    const contacto = new ContactDamage([c], e)
-    e.spawn(ENEMY_TYPE.TANK, 0, 0)
+    const yo = jugador(0, 0, 5)
+    const otro = companero(10, 0)
+    const contacto = new ContactDamage([yo, otro], e)
+    e.spawn(ENEMY_TYPE.TANK, 10, 0)
 
     contacto.update(0.016)
-    expect(c.isDead).toBe(true)
-    expect(c.hp).toBe(0)
+    expect(yo.isDead).toBe(true)
 
-    c.invulnTimer = 0
+    yo.invulnTimer = 0
     contacto.update(0.016)
-    expect(c.hp).toBe(0) // no se sigue castigando a un caído
+    expect(yo.hp).toBe(0)
   })
 })
 

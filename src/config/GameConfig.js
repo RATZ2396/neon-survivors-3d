@@ -330,20 +330,18 @@ export const CONFIG = {
      */
     DAMAGE_MULT: 0.7,
     /**
-     * Vida de un compañero.
+     * ACÁ ESTABA `MAX_HP`, la vida propia de cada compañero, y se fue.
      *
-     * TIENEN CUERPO: la horda no los atraviesa y el contacto les duele,
-     * igual que al jugador. Antes eran fantasmas —los enemigos les pasaban
-     * por adentro y no recibían nada— y eso rompía lo único que un
-     * escuadrón tiene que comunicar: que están todos en la misma.
+     * El escuadrón tiene UN hitbox repartido en tres cuerpos y UNA sola vida:
+     * la del jugador (ver ContactDamage). Tocar a un compañero es tocarte a
+     * vos, y no se puede morir uno solo.
      *
-     * Menos que los 100 del jugador porque no los controlás: no podés
-     * esquivar por ellos, así que si aguantaran lo mismo aguantarían de
-     * hecho más. Se curan solos con la misma regla que vos (ver
-     * CONFIG.PLAYER.REGEN_DELAY), que es lo que evita que una mala pasada
-     * te cueste la subida de nivel entera.
+     * Con vida propia se morían. Medido en una partida real: los dos duraron
+     * 30 y 34 segundos, y el jugador terminó con 53 de 100. Tiene sentido —no
+     * podés esquivar por ellos, te siguen a un puesto fijo—, y por eso
+     * cobrarles una barra que no controlás era cobrar por algo que no se puede
+     * jugar.
      */
-    MAX_HP: 60,
     /** Radio del anillo de color en el piso que dice quién es cada uno. */
     RING_RADIUS: 0.55,
   },

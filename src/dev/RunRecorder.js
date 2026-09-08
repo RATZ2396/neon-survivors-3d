@@ -82,18 +82,13 @@ export class RunRecorder {
    * Anota una entrada o una caída del escuadrón.
    *
    * @param {number} t segundo de la partida
-   * @param {'suma'|'cae'} ev
+   * @param {'suma'} ev por ahora solo hay uno: un compañero no se puede caer
    * @param {string} quien clave del arma del compañero
    * @param {number} puesto índice del lugar que ocupa
-   * @param {number} [dano] lo que llegó a hacer, solo para el que cae
    */
-  anotarEscuadron(t, ev, quien, puesto, dano = 0) {
+  anotarEscuadron(t, ev, quien, puesto) {
     if (!this.activo) return
-    // El que cae se lleva su daño anotado en el evento: su puesto se puede
-    // reusar, y el contador se reinicia para el que llegue.
-    const fila = { t: +t.toFixed(1), ev, quien }
-    if (ev === 'cae') fila.dano = Math.round(dano)
-    this.escuadron.push(fila)
+    this.escuadron.push({ t: +t.toFixed(1), ev, quien })
     if (ev === 'suma') this.puestos[puesto + 1] = quien
   }
 

@@ -116,13 +116,7 @@ export class GameManager {
     // El escuadrón le avisa al grabador cuándo entra y cuándo cae alguien.
     // Él no sabe que existe un grabador: publica un aviso y ya.
     this.squad.onCambio = (ev, key, puesto) =>
-      this.recorder?.anotarEscuadron(
-        this.waves.elapsed,
-        ev,
-        key,
-        puesto,
-        this.projectiles.damageByOwner[puesto + 1],
-      )
+      this.recorder?.anotarEscuadron(this.waves.elapsed, ev, key, puesto)
 
     /** Niveles ganados que todavía no eligieron mejora. */
     this._pendingLevels = 0

@@ -137,26 +137,26 @@ borraron y en su lugar el mazo del menú de nivel ofrece personajes.
 | Cuántos | 3 contando al principal (`CONFIG.SQUAD.MAX`) |
 | Cuáles te ofrece | cualquiera menos el tuyo y los que ya tenés |
 | Daño | 70% del arma (`CONFIG.SQUAD.DAMAGE_MULT`) |
-| Vida | 60, y se cura sola con la misma regla que la tuya |
+| Vida | **no tienen**: el escuadrón comparte una sola barra, la tuya |
 | Formación | un **círculo** de radio 1.5 alrededor tuyo; los dos puestos van atrás, a los costados |
 
-**Están todos en la misma.** Tienen cuerpo: la horda no los atraviesa y el
-contacto les duele, con la misma ventana de invulnerabilidad que la tuya. Y
-comparten tu apuntado: si pasás a manual, apuntan los tres.
+**Un hitbox repartido en tres, y una sola vida.** Tienen cuerpo —la horda no
+los atraviesa— pero no tienen barra propia: tocar a un compañero es tocarte a
+vos, y **no se puede morir uno solo**. La ventana de invulnerabilidad también
+es una, así que tres cuerpos rodeados no cobran el triple. Y comparten tu
+apuntado: si pasás a manual, apuntan los tres.
 
-Durante un tiempo fueron fantasmas —los enemigos les pasaban por adentro y no
-recibían nada— porque la hitbox estaba solo en el principal. El argumento era
-que una mejora que se te puede evaporar no es una mejora; **el argumento estaba
-mal**, porque un escuadrón donde solo uno puede morir no comunica que sean un
-escuadrón. Lo que resuelve el problema de fondo no es sacarles el cuerpo, es
-que **se curan solos** cuando los sacás del peligro: una mala pasada duele, pero
-no te borra la subida de nivel.
+Llegar acá costó dos versiones peores. Primero fueron **fantasmas**: la hitbox
+estaba solo en el principal, la horda les pasaba por adentro y no recibían
+nada. Después tuvieron **vida propia**, y se morían solos — medido en una
+partida real, los dos duraron 30 y 34 segundos mientras el jugador terminaba
+con 53 de 100. Tiene sentido: **no podés esquivar por ellos**, te siguen a un
+puesto fijo, así que cobrarles una barra que no controlás es cobrar por algo
+que no se puede jugar. Las dos versiones rompían lo mismo — si uno puede caerse
+sin vos, no son un escuadrón, son tres unidades que viajan juntas.
 
-El que cae **libera su lugar**, así que podés reclutar a otro — aunque no al
-mismo, porque cada personaje se ofrece una sola vez por partida.
-
-El anillo del piso vira al rojo a medida que lo lastiman: es toda la barra de
-vida que necesita algo que no controlás.
+Los tres destellan juntos cuando les pegan. Es la forma más directa de decir
+que la barra es una sola sin escribirlo en ningún lado.
 
 **Dos decisiones más:**
 

@@ -5,8 +5,6 @@ import { SoldierModel } from './SoldierModel.js'
 import { WeaponSystem } from '../combat/WeaponSystem.js'
 import { createWeaponMods } from '../combat/WeaponMods.js'
 
-/** Color al que tiende el anillo de un compañero herido. El mismo rojo del HUD. */
-const HERIDO = new THREE.Color(0xff4d6d)
 
 /**
  * Squad — el escuadrón: vos y hasta dos compañeros.
@@ -24,11 +22,17 @@ const HERIDO = new THREE.Color(0xff4d6d)
  * comentario de WeaponDefs), así que agregar un personaje sigue siendo agregar
  * una fila ahí, y aparece solo como opción al subir de nivel.
  *
- * ESTÁN TODOS EN LA MISMA. Tienen cuerpo: la horda no los atraviesa y el
- * contacto les duele, igual que a vos. Durante un tiempo fueron fantasmas —los
- * enemigos les pasaban por adentro y no recibían nada— y eso rompía lo único
- * que un escuadrón tiene que comunicar. También comparten tu apuntado: si pasás
- * a manual, apuntan todos.
+ * ESTÁN TODOS EN LA MISMA, Y ESO ES LITERAL. Tienen cuerpo —la horda no los
+ * atraviesa— pero NO tienen vida propia: el escuadrón es un hitbox repartido en
+ * tres y una sola barra, la del jugador. Tocar a un compañero es tocarte a vos,
+ * y no se puede morir uno solo. También comparten tu apuntado: si pasás a
+ * manual, apuntan los tres.
+ *
+ * Antes fueron dos cosas peores. Primero fantasmas: la horda les pasaba por
+ * adentro y no recibían nada. Después, con vida propia: se morían solos, y
+ * medido en una partida real duraron 30 y 34 segundos mientras el jugador
+ * terminaba con 53 de 100. Las dos versiones rompían lo mismo — si uno puede
+ * caerse sin vos, no son un escuadrón, son tres unidades que viajan juntas.
  *
  * DOS DECISIONES QUE CONVIENE CONOCER:
  *
@@ -61,16 +65,13 @@ class Companion {
     this.weaponKey = null
 
     /**
-     * Cuerpo y vida, con la misma forma que los del jugador: `position`,
-     * `radius`, `invulnTimer`, `isDead` y `takeDamage()`. Es lo que le permite
-     * a la horda chocarlo y a ContactDamage pegarle sin saber qué clase es.
+     * Su cuerpo: `position` y `radius`, que es todo lo que la horda y el daño
+     * por contacto le piden a un miembro del escuadrón.
+     *
+     * NO tiene vida propia. La del escuadrón es la del jugador y vive en
+     * Player; acá una barra más solo podría desincronizarse de aquella.
      */
     this.radius = CONFIG.PLAYER.RADIUS
-    this.maxHp = CONFIG.SQUAD.MAX_HP
-    this.hp = this.maxHp
-    this.invulnTimer = 0
-    this.sinceDamage = 0
-    this.isDead = false
 
     this.mesh = new THREE.Group()
     this.model = new SoldierModel({ height: CONFIG.PLAYER.HEIGHT, atlas })
@@ -80,8 +81,7 @@ class Companion {
 
     // Anillo de color en el piso: es lo único que dice de un vistazo QUÉ
     // personaje es cada uno. Con la cámara cenital, mirarle el arma al muñeco
-    // no es una opción realista. Además vira al rojo cuando está herido, que es
-    // toda la barra de vida que necesita algo que no controlás.
+    // no es una opción realista.
     const geo = new THREE.RingGeometry(
       CONFIG.SQUAD.RING_RADIUS - 0.07,
       CONFIG.SQUAD.RING_RADIUS,
@@ -102,9 +102,6 @@ class Companion {
     this.ring.visible = false
     scene.add(this.ring)
 
-    this._colorBase = new THREE.Color(0xffffff)
-    /** Última fracción de vida pintada, para no tocar el material cada frame. */
-    this._pintado = -1
 
     /**
      * Su propia arma, con sus propios modificadores EN CERO.
@@ -133,19 +130,13 @@ class Companion {
     // no, el informe le atribuiría al recién llegado lo que hizo el que murió.
     this.proyectiles.damageByOwner[this.ownerId] = 0
 
-    this.hp = this.maxHp
-    this.invulnTimer = 0
-    this.sinceDamage = 0
-    this.isDead = false
-
     // Aparece ya en su lugar, no viajando desde el origen del mundo.
     this.position.set(playerPos.x + this.offset.x, 0, playerPos.z + this.offset.z)
     this.mesh.position.copy(this.position)
     this.mesh.visible = true
 
     const def = WEAPON_DEFS[WEAPON[key]]
-    this._colorBase.setHex(def.color)
-    this._pintado = -1
+    this.ring.material.color.setHex(def.color)
     this.ring.visible = true
     this.model.reset()
     this.model.setHit(false)
@@ -171,27 +162,12 @@ class Companion {
   }
 
   /**
-   * Misma firma y mismas reglas que las del jugador: un golpe, y después un
-   * instante de invulnerabilidad. Sin esa ventana, cinco enemigos tocándolo en
-   * el mismo frame lo matan de una y no dura ni un encontronazo.
+   * @param {boolean} golpeado si el ESCUADRÓN acaba de recibir un golpe. Los
+   *   tres destellan juntos, que es la forma más directa de decir "la barra de
+   *   vida es una sola" sin escribirlo en ningún lado.
    */
-  takeDamage(amount) {
-    if (this.isDead || !this.active || this.invulnTimer > 0) return
-
-    this.hp -= amount
-    this.invulnTimer = CONFIG.PLAYER.INVULN_TIME
-    this.sinceDamage = 0
-
-    if (this.hp <= 0) {
-      this.hp = 0
-      this.isDead = true
-    }
-  }
-
-  update(delta, playerPos) {
+  update(delta, playerPos, golpeado) {
     if (!this.active) return
-
-    this._regenerate(delta)
 
     const tx = playerPos.x + this.offset.x
     const tz = playerPos.z + this.offset.z
@@ -218,27 +194,7 @@ class Companion {
 
     if (this.isMoving) this._turnTowards(Math.atan2(-dx, -dz), delta)
     this.model.update(delta, this.currentSpeed, this.isMoving)
-    this.model.setHit(this.invulnTimer > 0)
-    this._pintarVida()
-  }
-
-  /** Se cura solo con la misma regla que el jugador: mientras no lo toquen. */
-  _regenerate(delta) {
-    this.sinceDamage += delta
-    if (this.sinceDamage < CONFIG.PLAYER.REGEN_DELAY) return
-    if (this.hp >= this.maxHp) return
-    this.hp = Math.min(this.maxHp, this.hp + CONFIG.PLAYER.REGEN_PER_SECOND * delta)
-  }
-
-  /** El anillo vira al rojo a medida que lo lastiman. */
-  _pintarVida() {
-    const vida = this.hp / this.maxHp
-    // Se redondea para no reescribir el material sesenta veces por segundo por
-    // un cambio que nadie puede ver.
-    const paso = Math.round(vida * 20) / 20
-    if (paso === this._pintado) return
-    this._pintado = paso
-    this.ring.material.color.copy(this._colorBase).lerp(HERIDO, 1 - paso)
+    this.model.setHit(golpeado)
   }
 
   /** Giro suavizado por el camino más corto. Igual que el del jugador. */
@@ -363,24 +319,16 @@ export class Squad {
    * después, la horda chocaría contra donde estaban el frame pasado, y en
    * diagonal se los vería resbalar por adentro de los enemigos.
    *
-   * Acá también caen. El que se queda sin vida sale del escuadrón y LIBERA SU
-   * LUGAR: perder un compañero duele, pero no te cierra la puerta a reclutar
-   * otro, que sería castigar dos veces la misma mala pasada.
+   * Nadie se cae acá, y no es un olvido: no tienen vida propia. Una vez
+   * reclutado, un compañero se queda hasta el final de la partida.
    */
   moveTo(delta, playerPos) {
-    let cayo = false
+    // Los tres destellan cuando al escuadrón le pegan, sea a quien sea.
+    const golpeado = this.player.invulnTimer > 0
     for (let i = 0; i < this.members.length; i++) {
       const m = this.members[i]
-      if (!m.active) continue
-      m.update(delta, playerPos)
-      if (m.isDead) {
-        // El aviso va ANTES de clear(), que le borra la clave del arma.
-        this.onCambio?.('cae', m.weaponKey, i)
-        m.clear()
-        cayo = true
-      }
+      if (m.active) m.update(delta, playerPos, golpeado)
     }
-    if (cayo) this._rebuildBodies()
   }
 
   /**
