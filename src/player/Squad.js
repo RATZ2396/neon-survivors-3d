@@ -2,6 +2,7 @@ import * as THREE from 'three'
 import { CONFIG } from '../config/GameConfig.js'
 import { WEAPON_DEFS, WEAPON } from '../config/WeaponDefs.js'
 import { SoldierModel } from './SoldierModel.js'
+import { anguloCorto } from './Player.js'
 import { WeaponSystem } from '../combat/WeaponSystem.js'
 import { createWeaponMods } from '../combat/WeaponMods.js'
 
@@ -56,8 +57,11 @@ class Companion {
     this.offset = offset
 
     this.position = new THREE.Vector3()
-    /** Hacia dónde mira, en radianes. Misma convención que Player. */
+    /** Hacia dónde mira SU CUERPO, en radianes. Misma convención que Player. */
     this.facing = 0
+    /** Hacia dónde apunta su arma, y cuánto le queda de mandar. */
+    this._aimAngle = 0
+    this._aimHold = 0
     this.currentSpeed = 0
     this.isMoving = false
 
@@ -138,6 +142,7 @@ class Companion {
     const def = WEAPON_DEFS[WEAPON[key]]
     this.ring.material.color.setHex(def.color)
     this.ring.visible = true
+    this._aimHold = 0
     this.model.reset()
     this.model.setHit(false)
   }
@@ -151,10 +156,10 @@ class Companion {
     this.isMoving = false
   }
 
-  /** Orienta el mesh de golpe. La llama su arma al disparar estando quieto. */
-  faceTowards(angle) {
-    this.facing = angle
-    this.mesh.rotation.y = angle
+  /** "Estoy disparando hacia allá". Misma regla que la del jugador. */
+  faceTowards(angle, hold = CONFIG.PLAYER.AIM_HOLD_MIN) {
+    this._aimAngle = angle
+    this._aimHold = hold
   }
 
   recoil(strength = 1) {
@@ -192,19 +197,38 @@ class Companion {
     this.ring.position.x = this.position.x
     this.ring.position.z = this.position.z
 
-    if (this.isMoving) this._turnTowards(Math.atan2(-dx, -dz), delta)
+    this._orientar(delta, dx, dz)
     this.model.update(delta, this.currentSpeed, this.isMoving)
     this.model.setHit(golpeado)
   }
 
-  /** Giro suavizado por el camino más corto. Igual que el del jugador. */
-  _turnTowards(target, delta) {
-    const t = 1 - Math.exp(-CONFIG.PLAYER.TURN_SMOOTHING * delta)
-    let diff = target - this.facing
-    while (diff > Math.PI) diff -= Math.PI * 2
-    while (diff < -Math.PI) diff += Math.PI * 2
-    this.facing += diff * t
+  /**
+   * Piernas a donde camina, torso a lo que dispara. Igual que el jugador —
+   * ver Player._updateFacing, que es donde está explicado.
+   */
+  _orientar(delta, dx, dz) {
+    if (this._aimHold > 0) this._aimHold -= delta
+
+    if (this.isMoving) {
+      const t = 1 - Math.exp(-CONFIG.PLAYER.TURN_SMOOTHING * delta)
+      this.facing += anguloCorto(Math.atan2(-dx, -dz) - this.facing) * t
+    }
+
+    let twist = 0
+    if (this._aimHold > 0) {
+      twist = anguloCorto(this._aimAngle - this.facing)
+      const max = CONFIG.PLAYER.AIM_TWIST_MAX
+      if (twist > max) {
+        this.facing += twist - max
+        twist = max
+      } else if (twist < -max) {
+        this.facing += twist + max
+        twist = -max
+      }
+    }
+
     this.mesh.rotation.y = this.facing
+    this.model.setAimTwist(twist)
   }
 }
 

@@ -24,6 +24,28 @@ export const CONFIG = {
     SPEED: 6.0, // unidades / segundo
     RADIUS: 0.4,
     HEIGHT: 1.6,
+    /**
+     * APUNTADO DEL MODELO. Cuánto tiempo sigue mirando a lo que le disparó
+     * después del disparo, como múltiplo de la recarga del arma, con un piso.
+     *
+     * Sin esto el muñeco solo miraba al blanco en el frame exacto del
+     * disparo y volvía a mirar hacia donde caminaba: con la metralleta eso
+     * es un temblor ocho veces por segundo. El múltiplo hace que se ajuste
+     * solo a cada arma — la escopeta tarda 0.95s entre disparos y necesita
+     * mantener la mira mucho más que la metralleta.
+     */
+    AIM_HOLD_FACTOR: 1.6,
+    AIM_HOLD_MIN: 0.35,
+    /**
+     * Cuánto puede girar el torso sobre las caderas antes de que el cuerpo
+     * entero acompañe, en radianes (~69°).
+     *
+     * Es lo que permite CAMINAR EN UNA DIRECCIÓN Y DISPARAR EN OTRA sin que
+     * el muñeco patine de espaldas: las piernas van a donde te movés y el
+     * torso, los brazos y el arma van al blanco. Pasado este ángulo la
+     * cintura no da más y giran también las caderas.
+     */
+    AIM_TWIST_MAX: 1.2,
     /** Velocidad de giro del mesh hacia la dirección de movimiento (rad/s aprox). */
     TURN_SMOOTHING: 14.0,
     MAX_HP: 100,

@@ -3,6 +3,18 @@ import { CONFIG } from '../config/GameConfig.js'
 import { SoldierModel } from './SoldierModel.js'
 
 /**
+ * La diferencia entre dos ángulos por el camino más corto.
+ *
+ * Sin esto, girar de 179° a -179° da una vuelta de 358 grados en vez de los
+ * dos que son. Vive suelta porque la usan el jugador y cada compañero.
+ */
+export function anguloCorto(d) {
+  while (d > Math.PI) d -= Math.PI * 2
+  while (d < -Math.PI) d += Math.PI * 2
+  return d
+}
+
+/**
  * Player — movimiento y representación del jugador.
  *
  * Un único handleMovement(). Si el movimiento se siente mal, se corrige ACÁ.
@@ -21,8 +33,14 @@ export class Player {
      * los compañeros— y todos tienen que poder decir cuánto miden.
      */
     this.radius = RADIUS
-    /** Dirección hacia la que mira, en radianes. 0 = -Z (adelante). */
+    /**
+     * Hacia dónde mira EL CUERPO (las caderas y las piernas), en radianes.
+     * 0 = -Z. El torso puede estar girado sobre esto: ver _updateFacing.
+     */
     this.facing = 0
+    /** Hacia dónde está apuntando el arma, y cuánto le queda de mandar. */
+    this._aimAngle = 0
+    this._aimHold = 0
     /** Velocidad actual en unidades/segundo (magnitud, para animación/HUD). */
     this.currentSpeed = 0
     this.isMoving = false
@@ -125,6 +143,7 @@ export class Player {
     this.position.set(0, 0, 0)
     this.mesh.position.copy(this.position)
     this.facing = 0
+    this._aimHold = 0
     this.mesh.rotation.y = 0
     this.currentSpeed = 0
     this.isMoving = false
@@ -139,10 +158,20 @@ export class Player {
     this.model.reset()
   }
 
-  /** Orienta el mesh de golpe (lo usa el arma al disparar estando quieto). */
-  faceTowards(angle) {
-    this.facing = angle
-    this.mesh.rotation.y = angle
+  /**
+   * "Estoy disparando hacia allá". La llama el arma en cada disparo.
+   *
+   * NO gira nada de golpe: deja anotado el ángulo y por cuánto tiempo manda,
+   * y el giro lo resuelve _updateFacing con el resto. Antes esto escribía la
+   * rotación directamente y solo cuando estabas quieto, así que corriendo el
+   * muñeco miraba a donde caminaba mientras las balas salían para otro lado.
+   *
+   * @param {number} angle en la misma convención que `facing` (0 = -Z)
+   * @param {number} hold segundos que la mira sigue mandando
+   */
+  faceTowards(angle, hold = CONFIG.PLAYER.AIM_HOLD_MIN) {
+    this._aimAngle = angle
+    this._aimHold = hold
   }
 
   /** Patada del arma. La llama WeaponSystem al disparar. */
@@ -185,22 +214,45 @@ export class Player {
     else if (this.position.z < -limit) this.position.z = -limit
   }
 
+  /**
+   * DOS COSAS QUE MIRAN A LADOS DISTINTOS.
+   *
+   * Las piernas van a donde caminás; el torso, los brazos y el arma van a lo
+   * que estás disparando. Es lo que hace que se vea sincronizado cuando
+   * corrés en una dirección y tirás en otra, que es casi todo el tiempo.
+   *
+   * La cintura tiene un tope (AIM_TWIST_MAX). Pasado ese ángulo el cuerpo
+   * entero acompaña, porque un torso girado 180° sobre las caderas no es un
+   * soldado apuntando, es un accidente.
+   */
   _updateFacing(delta, move) {
-    if (!this.isMoving) return
+    if (this._aimHold > 0) this._aimHold -= delta
 
-    // El mesh mira hacia -Z por defecto (convención three.js), igual que
-    // "adelante" en InputManager: por eso el ángulo sale directo de atan2.
-    const targetAngle = Math.atan2(-move.x, -move.z)
+    // 1. El cuerpo sigue al movimiento. El mesh mira hacia -Z por defecto
+    //    (convención three.js), igual que "adelante" en InputManager.
+    if (this.isMoving) {
+      const objetivo = Math.atan2(-move.x, -move.z)
+      // Giro suavizado, independiente del framerate.
+      const t = 1 - Math.exp(-CONFIG.PLAYER.TURN_SMOOTHING * delta)
+      this.facing += anguloCorto(objetivo - this.facing) * t
+    }
 
-    // Giro suavizado, independiente del framerate.
-    const t = 1 - Math.exp(-CONFIG.PLAYER.TURN_SMOOTHING * delta)
-    let diff = targetAngle - this.facing
+    // 2. El torso gira sobre el cuerpo hacia el blanco.
+    let twist = 0
+    if (this._aimHold > 0) {
+      twist = anguloCorto(this._aimAngle - this.facing)
+      const max = CONFIG.PLAYER.AIM_TWIST_MAX
+      // Lo que la cintura no da, lo giran las caderas.
+      if (twist > max) {
+        this.facing += twist - max
+        twist = max
+      } else if (twist < -max) {
+        this.facing += twist + max
+        twist = -max
+      }
+    }
 
-    // Camino más corto alrededor del círculo (evita el giro de 350° absurdo).
-    while (diff > Math.PI) diff -= Math.PI * 2
-    while (diff < -Math.PI) diff += Math.PI * 2
-
-    this.facing += diff * t
     this.mesh.rotation.y = this.facing
+    this.model.setAimTwist(twist)
   }
 }

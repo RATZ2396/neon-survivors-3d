@@ -285,6 +285,11 @@ export class SoldierModel {
     this._gait = 0
     this._recoil = 0
     this._hit = false
+    /**
+     * Giro del torso hacia el blanco, sobre las caderas. Lo escribe quien
+     * lleva el modelo (Player, Companion); el modelo solo lo aplica.
+     */
+    this._aimTwist = 0
 
     // Scratch: el update no asigna nada.
     this._s = {
@@ -862,14 +867,22 @@ export class SoldierModel {
 
     // Contragiro del torso: los hombros van al revés que la cadera. Sin esto la
     // caminata se ve como un muñeco deslizándose.
-    this.torso.rotation.y = sinP * 0.14 * amp
+    //
+    // Y ENCIMA, el giro hacia el blanco. Se suma acá y no reemplaza nada: el
+    // contragiro es de la caminata y el apuntado es de dónde estás mirando,
+    // y las dos cosas pasan a la vez cuando corrés disparando de costado.
+    const contragiro = sinP * 0.14 * amp
+    this.torso.rotation.y = contragiro + this._aimTwist
     this.torso.rotation.z = -sinP * 0.035 * amp
     this.torso.rotation.x = (0.05 + 0.12 * run) * amp
     // Respiración cuando está quieto.
     this.torso.position.y = Math.sin(this._time * 1.7) * 0.007 * (1 - amp)
 
-    // La cabeza compensa el torso: la vista se mantiene al frente.
-    this.head.rotation.y = -this.torso.rotation.y * 0.65
+    // La cabeza compensa el CONTRAGIRO, no el apuntado: la vista se mantiene
+    // estable al caminar, pero acompaña al torso cuando está apuntando. Si
+    // compensara el giro entero, el soldado dispararía a un lado mirando al
+    // otro, que es justo lo que se veía roto.
+    this.head.rotation.y = -contragiro * 0.65
     this.head.rotation.x = -this.torso.rotation.x * 0.75 + Math.sin(p * 2) * 0.02 * amp
 
     // Arma: balanceo con el paso + retroceso decreciente.
@@ -958,6 +971,16 @@ export class SoldierModel {
   }
 
   /** Destello rojo mientras el jugador es invulnerable tras un golpe. */
+  /**
+   * Gira el torso (con los brazos, el arma y la cabeza) hacia el blanco.
+   *
+   * En radianes y RELATIVO al cuerpo. Quien lo llama es el dueño del modelo:
+   * el modelo no sabe qué es un enemigo.
+   */
+  setAimTwist(rad) {
+    this._aimTwist = rad
+  }
+
   setHit(active) {
     if (active === this._hit) return
     this._hit = active
@@ -980,6 +1003,7 @@ export class SoldierModel {
     this._cycle = 0
     this._gait = 0
     this._recoil = 0
+    this._aimTwist = 0
     this.setHit(false)
     this.update(0, 0, false)
   }

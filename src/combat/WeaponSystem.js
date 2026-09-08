@@ -314,18 +314,30 @@ export class WeaponSystem {
       this._burstAngle = baseAngle
     }
 
-    // El que dispara mira hacia donde dispara, si está quieto.
+    // El que dispara mira hacia donde dispara. SIEMPRE, se esté moviendo o no:
+    // el torso gira sobre las caderas, así que se puede correr para un lado y
+    // apuntar para el otro (ver Player._updateFacing). Antes esto solo pasaba
+    // estando quieto, y corriendo el muñeco miraba a donde caminaba mientras
+    // las balas salían para otro lado.
     //
     // EL +π NO ES UN AJUSTE A OJO. El muñeco mira hacia su -Z local, así que
     // para apuntar en la dirección (dx,dz) su rotación tiene que ser
-    // atan2(-dx,-dz) — que es atan2(dx,dz) + π, y es exactamente la cuenta que
-    // ya usaba el giro por movimiento en Player._updateFacing.
+    // atan2(-dx,-dz) — que es atan2(dx,dz) + π, la misma cuenta que usa el giro
+    // por movimiento.
     //
     // Sin el +π esto hacía literalmente lo contrario de lo que decía su propio
     // comentario: con un enemigo justo adelante, el soldado quedaba girado 180°
     // y le disparaba de espaldas. Medido: producto escalar -1 entre hacia dónde
     // miraba y dónde estaba el enemigo.
-    if (!this.player.isMoving) this.player.faceTowards(baseAngle + Math.PI)
+    //
+    // La mira sigue mandando un rato después del disparo, proporcional a la
+    // recarga del arma: si solo mandara en el frame del disparo, la metralleta
+    // haría temblar al muñeco ocho veces por segundo.
+    const hold = Math.max(
+      CONFIG.PLAYER.AIM_HOLD_MIN,
+      def.cooldown * this.cooldownMult * CONFIG.PLAYER.AIM_HOLD_FACTOR,
+    )
+    this.player.faceTowards(baseAngle + Math.PI, hold)
 
     // Patada del arma. Es la señal de que estás disparando: sin ella el soldado
     // se ve inmóvil aunque salgan balas.
