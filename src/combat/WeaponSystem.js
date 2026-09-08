@@ -86,6 +86,15 @@ export class WeaponSystem {
 
     /** Modificadores permanentes del arma equipada, ya resueltos. */
     this.perm = SIN_MEJORAS
+
+    /**
+     * Cuánto pega esta arma comparada con la de la tabla. 1 = el jugador.
+     *
+     * Lo baja el escuadrón para sus compañeros (CONFIG.SQUAD.DAMAGE_MULT).
+     * Vive acá y no en el compañero porque es una propiedad DEL ARMA, y
+     * así el mismo sistema sirve para los dos dueños sin una sola rama.
+     */
+    this.damageScale = 1
   }
 
   get def() {
@@ -117,10 +126,10 @@ export class WeaponSystem {
     this._shotIndex = 0
   }
 
-  /** Daño: permanente × mejoras de la partida. */
+  /** Daño: permanente × mejoras de la partida × quién la lleva. */
   get damageMult() {
     const run = this.progression ? this.progression.stats.damageMult : 1
-    return this.perm.damageMult * run
+    return this.perm.damageMult * run * this.damageScale
   }
 
   /**
@@ -299,9 +308,18 @@ export class WeaponSystem {
       this._burstAngle = baseAngle
     }
 
-    // El jugador mira hacia lo que dispara si está quieto: si no, se ve como si
-    // le pegara de espaldas.
-    if (!this.player.isMoving) this.player.faceTowards(baseAngle)
+    // El que dispara mira hacia donde dispara, si está quieto.
+    //
+    // EL +π NO ES UN AJUSTE A OJO. El muñeco mira hacia su -Z local, así que
+    // para apuntar en la dirección (dx,dz) su rotación tiene que ser
+    // atan2(-dx,-dz) — que es atan2(dx,dz) + π, y es exactamente la cuenta que
+    // ya usaba el giro por movimiento en Player._updateFacing.
+    //
+    // Sin el +π esto hacía literalmente lo contrario de lo que decía su propio
+    // comentario: con un enemigo justo adelante, el soldado quedaba girado 180°
+    // y le disparaba de espaldas. Medido: producto escalar -1 entre hacia dónde
+    // miraba y dónde estaba el enemigo.
+    if (!this.player.isMoving) this.player.faceTowards(baseAngle + Math.PI)
 
     // Patada del arma. Es la señal de que estás disparando: sin ella el soldado
     // se ve inmóvil aunque salgan balas.
@@ -310,20 +328,19 @@ export class WeaponSystem {
     return true
   }
 
-  /** Una andanada hacia `angle`, más la de la espalda si la tenés. */
+  /**
+   * Una andanada hacia `angle`.
+   *
+   * Acá había una segunda andanada 180° hacia atrás, de la habilidad `Cañón
+   * trasero`. Se fue: la espalda ahora la cubre un compañero, que es lo que
+   * el jugador ya creía estar viendo (ver Squad.js).
+   */
   _shoot(angle) {
-    this._volley(angle, 1)
-    if (this.mods.backfire > 0) this._volley(angle + Math.PI, this.mods.backfireDamage)
+    this._volley(angle)
   }
 
-  /**
-   * El abanico del arma disparado hacia `angle`.
-   *
-   * `damageScale` es para la andanada trasera, que sale más floja en los
-   * primeros niveles: cubrirte la espalda gratis desde el nivel 1 haría que
-   * la habilidad no tuviera nada que mejorar.
-   */
-  _volley(angle, damageScale) {
+  /** El abanico del arma disparado hacia `angle`. */
+  _volley(angle) {
     const def = this.def
     const px = this.player.position.x
     const pz = this.player.position.z
@@ -338,7 +355,7 @@ export class WeaponSystem {
     const step = count > 1 ? spread / (count - 1) : 0
     const start = count > 1 ? -spread / 2 : 0
 
-    const dmg = this.damageMult * damageScale
+    const dmg = this.damageMult
     const m = this.mods
 
     for (let k = 0; k < count; k++) {

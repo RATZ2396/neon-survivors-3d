@@ -26,11 +26,18 @@ y son modificadores del arma, no armas nuevas:
 | Pistola | Escopeta | Metralleta |
 |---|---|---|
 | Rebote | Impacto (empuje) | Calentamiento |
-| Cañón trasero | Abanico trasero | Doble línea |
+| ~~Cañón trasero~~ | ~~Abanico trasero~~ | Doble línea |
 | Perforación total | Doble cañón | Bala explosiva |
 
-La cuenta cierra: **6 al alcance por partida** (3 de base + 3 propias) con un
-techo de 4 equipadas, así que nunca las tenés todas.
+Las dos tachadas **se borraron** al agregar el escuadrón: repetían la andanada
+180° hacia atrás, o sea un tipo disparando por la espalda sin darse vuelta.
+Cubrían el problema real —que la horda te rodea— pero se veían falsas, porque lo
+eran. Ahora eso lo hace un compañero de verdad, que se elige en el mismo menú de
+nivel (ver `player/Squad.js`).
+
+La cuenta quedó en **5 o 6 al alcance por partida** según el personaje (3 de base
++ 2 o 3 propias), más hasta 2 compañeros, con un techo de 4 habilidades
+equipadas: nunca las tenés todas.
 
 **Lo que queda del punto 1:** unificar arma y habilidad en un solo sistema.
 `Rayo`, `Escudo orbital` y compañía ya tienen daño, enfriamiento y alcance —

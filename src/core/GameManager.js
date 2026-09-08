@@ -17,6 +17,7 @@ import { PickupManager } from '../progression/PickupManager.js'
 import { SkillSystem } from '../skills/SkillSystem.js'
 import { BossController } from '../enemies/BossController.js'
 import { StartMenu } from '../ui/StartMenu.js'
+import { Squad } from '../player/Squad.js'
 import { PlayerProfile } from '../meta/PlayerProfile.js'
 import { SoundManager } from '../audio/SoundManager.js'
 import { GameAudio } from '../audio/GameAudio.js'
@@ -83,6 +84,25 @@ export class GameManager {
     // equipar para aplicar las mejoras compradas entre partidas.
     this.profile = new PlayerProfile()
     this.weapons.profile = this.profile
+
+    /**
+     * El escuadrón: hasta dos compañeros que se suman AL SUBIR DE NIVEL.
+     *
+     * Se crea después del perfil porque cada compañero necesita las mejoras
+     * de taller de SU arma, y comparte la textura del soldado del jugador:
+     * generar de nuevo ese canvas por cada muñeco sería pagar tres veces lo
+     * más caro de construir un soldado.
+     */
+    this.squad = new Squad(
+      this.scene,
+      {
+        enemies: this.enemies,
+        projectiles: this.projectiles,
+        progression: this.progression,
+        profile: this.profile,
+      },
+      this.player.model.atlas,
+    )
 
     /** Niveles ganados que todavía no eligieron mejora. */
     this._pendingLevels = 0
@@ -205,6 +225,7 @@ export class GameManager {
       this.progression,
       this.boss,
       this.skills,
+      this.squad,
     )
     // Los botones de la pantalla de muerte hacen lo mismo que R y T. Sin
     // esto, en un teléfono morirse no tiene salida.
@@ -510,6 +531,7 @@ export class GameManager {
       weapons: this.weapons,
       skills: this.skills,
       progression: this.progression,
+      squad: this.squad,
     }
   }
 
@@ -652,6 +674,7 @@ export class GameManager {
     this.floaters.clear()
     this.waves.reset()
     this.weapons.reset()
+    this.squad.reset()
     this.skills.reset()
     this.boss.reset()
     this.contact.reset()
@@ -742,7 +765,9 @@ export class GameManager {
       //   3. la horda persigue esa misma posición y construye la rejilla
       //      espacial del frame (si fuera antes que 1, la perseguiría con un
       //      frame de retraso y en diagonal se vería como que "resbala")
-      //   4. las armas apuntan y disparan sobre la horda ya ubicada
+      //   4. las armas apuntan y disparan sobre la horda ya ubicada — la
+      //      tuya y la de cada compañero, que primero camina a su puesto
+      //      para no disparar desde donde estaba el frame pasado
       //   5. los proyectiles se mueven y colisionan usando esa misma rejilla
       //   6. recién ACÁ se aplican las muertes: mientras 4 y 5 recorrían la
       //      horda, los índices tenían que quedarse quietos
@@ -755,6 +780,7 @@ export class GameManager {
       this.enemies.update(delta, this.player.position)
       this._updateAim()
       this.weapons.update(delta)
+      this.squad.update(delta, this.player.position)
       this.skills.update(delta, this.time.elapsed)
       this.projectiles.update(delta)
       this.enemies.resolveDamage()

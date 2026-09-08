@@ -29,10 +29,11 @@
 export function createWeaponMods() {
   return {
     // ── WeaponSystem: qué balas salen ───────────────────────────────────
-    /** 1 = repite la andanada entera 180° hacia atrás. */
-    backfire: 0,
-    /** Fracción del daño con la que sale la andanada trasera. */
-    backfireDamage: 0,
+    //
+    // ACÁ ESTABAN `backfire` y `backfireDamage`, que repetían la andanada
+    // 180° hacia atrás. Se fueron con las habilidades que los usaban: un
+    // solo tipo disparando por la espalda sin darse vuelta se veía falso, y
+    // ahora la espalda la cubre un compañero de verdad (ver Squad.js).
     /** Balas paralelas extra por andanada (no en abanico: al costado). */
     parallel: 0,
     /** Separación entre las balas paralelas, en unidades. */

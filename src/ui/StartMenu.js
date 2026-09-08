@@ -53,13 +53,13 @@ export class StartMenu {
           <button class="ssound" data-act="mute" title="Silencio (M)"></button>
           <button class="ssound" data-act="options">AJUSTES</button>
         </div>
-        <p class="ssub">Elegí tu arma — define toda la partida. Las habilidades se eligen adentro, al subir de nivel.</p>
+        <p class="ssub">Elegí tu personaje — su arma define toda la partida. Adentro, al subir de nivel, elegís habilidades y hasta dos compañeros.</p>
         <div class="scards" data-cards></div>
         <div class="sshop" data-shop></div>
         <div class="sfoot">
           <button class="splay" data-act="play">JUGAR</button>
           <p class="shint shint-pc">1-3 para elegir · Enter para empezar · WASD para moverte · M para silencio · el arma dispara sola</p>
-          <p class="shint shint-touch">Tocá un arma para elegirla · movete con el joystick · el arma dispara sola</p>
+          <p class="shint shint-touch">Tocá un personaje para elegirlo · movete con el joystick · las armas disparan solas</p>
         </div>
       </div>
     `

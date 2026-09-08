@@ -271,6 +271,47 @@ export const CONFIG = {
    * donde la partida entera se lee en una columna. Acá quedan los números que
    * valen para todas por igual.
    */
+  /**
+   * EL ESCUADRÓN: vos y hasta dos compañeros.
+   *
+   * Reemplaza a la habilidad `Cañón trasero`, que disparaba la misma
+   * andanada 180° hacia atrás — un tipo tirando por la espalda sin darse
+   * vuelta. Cubría el problema real (la horda te rodea) pero se veía falso,
+   * porque lo era. Un compañero parado atrás disparando hacia atrás resuelve
+   * lo mismo y es lo que el jugador ya creía estar viendo.
+   */
+  SQUAD: {
+    /** Personajes a la vez, CONTANDO al principal. */
+    MAX: 3,
+    /**
+     * Dónde se para cada compañero, relativo al jugador y en coordenadas
+     * DEL MUNDO, no de hacia dónde mira.
+     *
+     * Es la diferencia entre una formación y un carrusel: atados a la
+     * orientación, girar en el lugar los haría dar vueltas alrededor tuyo y
+     * la cobertura de la espalda —que es todo el punto— cambiaría cada vez
+     * que cambiás de dirección. En coordenadas del mundo, la espalda de la
+     * formación mira siempre a la cámara y el jugador puede confiar en ella.
+     */
+    OFFSETS: [
+      { x: -2.0, z: 1.6 },
+      { x: 2.0, z: 1.6 },
+    ],
+    /** Qué tan pegado te sigue; mayor = menos rezagado. */
+    FOLLOW: 6.0,
+    /**
+     * Daño del compañero como fracción del arma.
+     *
+     * La habilidad que reemplaza llegaba al 100% del daño hacia atrás, pero
+     * recién en su quinto nivel: cinco subidas de nivel. Un compañero es un
+     * arma entera que llega completa por UNA elección, así que paga la
+     * diferencia acá.
+     */
+    DAMAGE_MULT: 0.7,
+    /** Radio del anillo de color en el piso que dice quién es cada uno. */
+    RING_RADIUS: 0.55,
+  },
+
   BOSS: {
     /** El jefe aparece a esta distancia: lejos, para verlo venir. */
     SPAWN_DISTANCE: 22,

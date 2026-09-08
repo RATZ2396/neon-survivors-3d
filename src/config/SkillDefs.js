@@ -112,21 +112,11 @@ export const SKILL_DEFS = [
       { mods: { ricochet: 3, ricochetKeep: 0.85 } },
     ],
   },
-  {
-    key: 'PISTOL_BACKFIRE',
-    weapon: 'PISTOL',
-    name: 'Cañón trasero',
-    desc: 'Dispara también hacia atrás, al mismo tiempo. Dejás de tener espalda.',
-    kind: SKILL_KIND.WEAPON,
-    color: 0x39d0ff,
-    levels: [
-      { mods: { backfire: 1, backfireDamage: 0.5 } },
-      { mods: { backfire: 1, backfireDamage: 0.62 } },
-      { mods: { backfire: 1, backfireDamage: 0.75 } },
-      { mods: { backfire: 1, backfireDamage: 0.87 } },
-      { mods: { backfire: 1, backfireDamage: 1.0 } },
-    ],
-  },
+  // ACÁ ESTABA `Cañón trasero`, y en la escopeta `Abanico trasero`: las dos
+  // repetían la andanada 180° hacia atrás. Un solo tipo disparando por la
+  // espalda sin darse vuelta se veía falso, y lo era. Lo que resuelven —que
+  // la horda te rodea— ahora lo hace un compañero de verdad, que se elige
+  // en este mismo menú de nivel (ver Squad.js y UpgradeDefs).
   {
     key: 'PISTOL_PIERCE',
     weapon: 'PISTOL',
@@ -160,21 +150,6 @@ export const SKILL_DEFS = [
       { mods: { knockback: 0.62 } },
       { mods: { knockback: 0.8 } },
       { mods: { knockback: 1.0 } },
-    ],
-  },
-  {
-    key: 'SHOTGUN_BACKFAN',
-    weapon: 'SHOTGUN',
-    name: 'Abanico trasero',
-    desc: 'El mismo abanico, también hacia atrás.',
-    kind: SKILL_KIND.WEAPON,
-    color: 0xffd166,
-    levels: [
-      { mods: { backfire: 1, backfireDamage: 0.5 } },
-      { mods: { backfire: 1, backfireDamage: 0.62 } },
-      { mods: { backfire: 1, backfireDamage: 0.75 } },
-      { mods: { backfire: 1, backfireDamage: 0.87 } },
-      { mods: { backfire: 1, backfireDamage: 1.0 } },
     ],
   },
   {

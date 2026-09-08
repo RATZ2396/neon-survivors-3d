@@ -108,16 +108,57 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 | Arma | Habilidad | Qué hace |
 |---|---|---|
 | Pistola | **Rebote** | agotada la penetración, la bala salta al siguiente (hasta 3 saltos) |
-| Pistola | **Cañón trasero** | dispara la misma andanada hacia atrás |
 | Pistola | **Perforación total** | atraviesa a los que frenan balas — tanque y boss |
 | Escopeta | **Impacto** | cada perdigón empuja; un disparo de cerca abre un pasillo |
-| Escopeta | **Abanico trasero** | el mismo abanico, también hacia atrás |
 | Escopeta | **Doble cañón** | ráfaga de 2-3 andanadas y después recarga más lenta |
 | Metralleta | **Calentamiento** | disparando seguido, la recarga baja hasta -42% |
 | Metralleta | **Doble línea** | balas paralelas al costado, no abanico |
 | Metralleta | **Bala explosiva** | cada 6-12 balas, una estalla al impactar |
 
 El **empuje** de la onda expansiva y de Impacto no mueve a los `heavy` (las élites y el Cazador), a propósito: si un jefe retrocediera con cada golpe la pelea se ganaría quedándose quieto.
+
+La pistola y la escopeta tenían una tercera —**Cañón trasero** y **Abanico trasero**— que repetía la andanada 180° hacia atrás. Se borraron: ver el escuadrón, abajo.
+
+## El escuadrón
+
+Elegís **un personaje principal** antes de jugar, y al subir de nivel podés sumar
+hasta **dos compañeros**. Tres en total, contándote.
+
+**De dónde salió.** La pistola y la escopeta tenían una habilidad que disparaba
+la misma andanada 180° hacia atrás: un tipo tirando por la espalda sin darse
+vuelta. Cubría el problema real —que la horda te rodea— pero se veía falso,
+porque lo era. Un compañero parado atrás disparando hacia atrás resuelve lo
+mismo y es lo que el jugador ya creía estar viendo. Las dos habilidades se
+borraron y en su lugar el mazo del menú de nivel ofrece personajes.
+
+| | |
+|---|---|
+| Roster | los mismos personajes jugables: **un personaje es un arma** (ver WeaponDefs) |
+| Cuántos | 3 contando al principal (`CONFIG.SQUAD.MAX`) |
+| Cuáles te ofrece | cualquiera menos el tuyo y los que ya tenés |
+| Daño | 70% del arma (`CONFIG.SQUAD.DAMAGE_MULT`) |
+| Puesto | detrás tuyo, a los costados, **en coordenadas del mundo** |
+
+**Tres decisiones que conviene conocer:**
+
+1. **No se mueren y no chocan.** Un compañero cuesta una subida de nivel; una
+   mejora que se te puede evaporar no es una mejora, es una apuesta. Y no frenan
+   a la horda: si fueran obstáculos, pararse detrás de ellos sería la estrategia
+   dominante y el juego pasaría a ser esconderse.
+2. **No heredan tus habilidades.** Las de personaje están atadas a tu arma, así
+   que darle Rebote —de pistola— a un compañero con escopeta sería aplicar un
+   modificador que nadie diseñó para eso. Sí heredan lo que no depende del arma:
+   las mejoras del taller de **su** arma y las estadísticas de la partida.
+3. **El puesto es del mundo, no de hacia dónde mirás.** Atado a la orientación,
+   girar en el lugar los haría dar vueltas alrededor tuyo y la cobertura de la
+   espalda —que es todo el punto— cambiaría cada vez que cambiás de dirección.
+
+Cada uno lleva un **anillo de color** en el piso, del color de su arma: con la
+cámara cenital, mirarle el arma al muñeco no es una opción realista.
+
+**Un personaje nuevo es una fila en `WEAPON_DEFS`.** La opción del menú de nivel
+se deriva de esa tabla, igual que las habilidades se derivan de `SKILL_DEFS`, así
+que aparece sola sin tocar el mazo.
 
 ## Oleadas: la horda y las élites
 
@@ -231,6 +272,7 @@ src/
 ├── ui/HUD.js                     vida, XP, tiempo, oleada y tu build
 ├── ui/UpgradeMenu.js             elección de mejora al subir de nivel
 ├── ui/OptionsMenu.js             ajustes y controles, en un solo panel
+├── player/Squad.js               vos y hasta dos compañeros que pelean al lado
 ├── ui/SkillLab.js                herramienta de diseño para evaluar habilidades (dev)
 ├── config/EnemyDefs.js           arquetipos de enemigo (las élites son unos más)
 ├── config/BossDefs.js            qué hace cada élite + el calendario de la partida

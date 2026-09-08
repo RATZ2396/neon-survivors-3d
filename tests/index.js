@@ -1238,9 +1238,24 @@ describe('Tabla de habilidades de personaje', () => {
     }
   })
 
-  test('cada arma tiene exactamente tres', () => {
+  test('ningún personaje se queda sin habilidades propias', () => {
+    // Eran tres por arma. La pistola y la escopeta bajaron a dos cuando se
+    // borraron `Cañón trasero` y `Abanico trasero`: lo que hacían —cubrirte
+    // la espalda— ahora lo hace un compañero de verdad. Lo que sigue
+    // importando es que nadie quede con menos que la metralleta menos una.
     for (const w of WEAPON_DEFS) {
-      expect(SKILL_DEFS.filter((d) => d.weapon === w.key).length).toBe(3)
+      expect(SKILL_DEFS.filter((d) => d.weapon === w.key).length).toBeGreaterThan(1)
+    }
+  })
+
+  test('la espalda ya no se cubre disparando para atrás', () => {
+    // El modificador entero se fue, no solo las filas que lo usaban. Si
+    // quedara la clave, alguien podría volver a escribir la habilidad falsa
+    // sin enterarse de que se sacó a propósito.
+    expect('backfire' in createWeaponMods()).toBe(false)
+    for (const def of SKILL_DEFS) {
+      if (def.kind !== SKILL_KIND.WEAPON) continue
+      for (const l of def.levels) expect('backfire' in l.mods).toBe(false)
     }
   })
 
@@ -1324,21 +1339,41 @@ describe('Habilidades que cambian el arma', () => {
     return { w, enemies, disparos, mods }
   }
 
-  test('Cañón trasero duplica la andanada y la manda al revés', () => {
-    const { w, enemies, disparos, mods } = armar()
+  test('el que dispara mira al blanco, no le da la espalda', () => {
+    // Bug real y viejo: con un enemigo justo adelante, el soldado quedaba
+    // girado 180° y le disparaba por encima del hombro. El muñeco mira hacia
+    // su -Z local, así que su rotación tiene que ser atan2(-dx,-dz).
+    const enemies = new EnemyManager(escena)
+    let rot = null
+    const player = {
+      position: { x: 0, y: 0, z: 0 },
+      isMoving: false,
+      faceTowards(a) {
+        rot = a
+      },
+      recoil() {},
+    }
+    const w = new WeaponSystem(player, enemies, { fire: () => {} })
+    w.equip('PISTOL')
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, -6) // justo al norte
+
+    w._fire()
+
+    // Su -Z local llevado al mundo tiene que apuntar al enemigo.
+    const mira = { x: -Math.sin(rot), z: -Math.cos(rot) }
+    expect(mira.x).toBeCloseTo(0, 1e-6)
+    expect(mira.z).toBeCloseTo(-1, 1e-6) // el enemigo está en -Z
+  })
+
+  test('un arma dispara una sola andanada, y para adelante', () => {
+    // Reemplaza al test de `Cañón trasero`. Que NO salga nada hacia atrás es
+    // ahora parte del diseño: la espalda la cubre un compañero.
+    const { w, enemies, disparos } = armar()
     enemies.spawn(ENEMY_TYPE.NORMAL, 0, 5)
 
     w._fire()
-    const sinHabilidad = disparos.length
-    disparos.length = 0
-
-    mods.backfire = 1
-    mods.backfireDamage = 0.5
-    w._fire()
-
-    expect(disparos.length).toBe(sinHabilidad * 2)
-    expect(disparos[1].dz).toBeCloseTo(-disparos[0].dz, 1e-6)
-    expect(disparos[1].dmg).toBeCloseTo(disparos[0].dmg * 0.5, 1e-6)
+    expect(disparos.length).toBe(1)
+    expect(disparos[0].dz).toBeGreaterThan(0) // hacia el enemigo, que está en +Z
   })
 
   test('Doble línea sale al costado y en paralelo, no en abanico', () => {
@@ -1924,6 +1959,126 @@ describe('Composición de las oleadas', () => {
     const ultima = WAVE_STAGES[WAVE_STAGES.length - 1].weights
     expect(ultima.NORMAL).toBeLessThan(primera.NORMAL)
     expect(Object.keys(ultima).length).toBeGreaterThan(Object.keys(primera).length)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Escuadrón', () => {
+  /**
+   * Escuadrón de mentira.
+   *
+   * El de verdad construye soldados y anillos, o sea WebGL y un canvas, y
+   * esto corre en Node. Lo que se prueba acá es la REGLA —a quién se puede
+   * sumar y cuándo—, que es lo que decide el mazo del menú de nivel y lo
+   * único que puede regalarte dos veces el mismo personaje.
+   */
+  function escuadronFalso(...iniciales) {
+    const dentro = [...iniciales]
+    return {
+      get size() {
+        return 1 + dentro.length
+      },
+      get full() {
+        return this.size >= CONFIG.SQUAD.MAX
+      },
+      get keys() {
+        return [...dentro]
+      },
+      has: (k) => dentro.includes(k),
+      add(k) {
+        if (this.full || this.has(k)) return false
+        dentro.push(k)
+        return true
+      },
+    }
+  }
+
+  function contexto(squad, armaPropia = WEAPON_DEFS[0].key) {
+    return {
+      squad,
+      weapons: { def: { key: armaPropia } },
+      skills: { owned: [], levelOf: () => 0 },
+      progression: new Progression(),
+      player: { position: { x: 0, z: 0 } },
+    }
+  }
+
+  const compañeros = () => UPGRADE_DEFS.filter((u) => u.tag === 'COMPAÑERO')
+
+  test('hay una opción por personaje del juego', () => {
+    // Derivadas de WEAPON_DEFS: agregar un personaje lo hace aparecer solo
+    // en el menú de nivel, sin tocar el mazo.
+    expect(compañeros().length).toBe(WEAPON_DEFS.length)
+  })
+
+  test('no te ofrece el personaje que ya estás jugando', () => {
+    const ctx = contexto(escuadronFalso(), WEAPON_DEFS[0].key)
+    const ofrecidos = compañeros().filter((u) => u.available(ctx))
+    expect(ofrecidos.length).toBe(WEAPON_DEFS.length - 1)
+    expect(ofrecidos.some((u) => u.key === 'C_' + WEAPON_DEFS[0].key)).toBe(false)
+  })
+
+  test('ni uno que ya tenés', () => {
+    const otro = WEAPON_DEFS[1].key
+    const ctx = contexto(escuadronFalso(otro), WEAPON_DEFS[0].key)
+    expect(compañeros().some((u) => u.key === 'C_' + otro)).toBe(true)
+    expect(compañeros().find((u) => u.key === 'C_' + otro).available(ctx)).toBe(false)
+  })
+
+  test('con el escuadrón lleno no se ofrece ninguno', () => {
+    const ctx = contexto(escuadronFalso(WEAPON_DEFS[1].key, WEAPON_DEFS[2].key))
+    expect(ctx.squad.full).toBe(true)
+    for (const u of compañeros()) expect(u.available(ctx)).toBe(false)
+  })
+
+  test('el máximo cuenta al principal', () => {
+    // MAX 3 son vos y DOS compañeros, no tres compañeros.
+    const s = escuadronFalso()
+    expect(s.size).toBe(1)
+    expect(s.add(WEAPON_DEFS[1].key)).toBe(true)
+    expect(s.add(WEAPON_DEFS[2].key)).toBe(true)
+    expect(s.full).toBe(true)
+    expect(s.size).toBe(CONFIG.SQUAD.MAX)
+  })
+
+  test('tomar la mejora suma al personaje', () => {
+    const ctx = contexto(escuadronFalso())
+    const otro = WEAPON_DEFS[1].key
+    compañeros().find((u) => u.key === 'C_' + otro).apply(ctx)
+    expect(ctx.squad.has(otro)).toBe(true)
+  })
+
+  test('el compañero pega menos que vos con la misma arma', () => {
+    // Un arma entera que llega completa por UNA elección tiene que costar
+    // algo: la habilidad que reemplaza llegaba al 100% recién en su quinto
+    // nivel.
+    const enemies = new EnemyManager(escena)
+    const jugador = { position: { x: 0, y: 0, z: 0 }, isMoving: false, faceTowards() {}, recoil() {} }
+    const proyectiles = { fire: () => {} }
+
+    const mia = new WeaponSystem(jugador, enemies, proyectiles)
+    const suya = new WeaponSystem(jugador, enemies, proyectiles)
+    mia.equip('PISTOL')
+    suya.equip('PISTOL')
+    suya.damageScale = CONFIG.SQUAD.DAMAGE_MULT
+
+    expect(suya.damageMult).toBeCloseTo(mia.damageMult * CONFIG.SQUAD.DAMAGE_MULT, 1e-6)
+    expect(suya.damageMult).toBeLessThan(mia.damageMult)
+  })
+
+  test('los puestos alcanzan para todos los lugares del escuadrón', () => {
+    // Si alguien sube MAX sin agregar un puesto, el tercer compañero no
+    // tendría dónde pararse y la mejora se aplicaría sin que aparezca nadie.
+    expect(CONFIG.SQUAD.OFFSETS.length).toBe(CONFIG.SQUAD.MAX - 1)
+  })
+
+  test('los puestos están detrás del jugador, no encima', () => {
+    // Detrás en coordenadas del mundo (+Z es hacia la cámara). Que estén
+    // separados es lo que hace que cubran algo distinto de lo tuyo.
+    for (const o of CONFIG.SQUAD.OFFSETS) {
+      expect(o.z).toBeGreaterThan(0)
+      expect(Math.abs(o.x)).toBeGreaterThan(1)
+    }
   })
 })
 

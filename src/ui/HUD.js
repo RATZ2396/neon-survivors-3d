@@ -1,4 +1,5 @@
 import { SKILL_DEFS } from '../config/SkillDefs.js'
+import { WEAPON_DEFS, WEAPON } from '../config/WeaponDefs.js'
 import { CONFIG } from '../config/GameConfig.js'
 
 /**
@@ -18,7 +19,7 @@ import { CONFIG } from '../config/GameConfig.js'
  * contador que cambia 60 veces por segundo.
  */
 export class HUD {
-  constructor(player, enemies, waves, weapons, progression, boss, skills) {
+  constructor(player, enemies, waves, weapons, progression, boss, skills, squad) {
     this.player = player
     this.enemies = enemies
     this.waves = waves
@@ -26,6 +27,7 @@ export class HUD {
     this.progression = progression
     this.boss = boss
     this.skills = skills
+    this.squad = squad
 
     this._textAccum = 0
     this._lastHp = -1
@@ -115,6 +117,12 @@ export class HUD {
     for (let i = 0; i < owned.length; i++) {
       firma = firma * 31 + owned[i].defIndex * 8 + owned[i].level
     }
+    // El escuadrón entra en la firma o la barra no se enteraría de que se
+    // sumó alguien: la reconstrucción solo pasa cuando este número cambia.
+    const refuerzos = this.squad ? this.squad.keys : []
+    for (let i = 0; i < refuerzos.length; i++) {
+      firma = firma * 31 + WEAPON[refuerzos[i]] + 1
+    }
     if (firma === this._builtLoadout) return
     this._builtLoadout = firma
 
@@ -129,6 +137,21 @@ export class HUD {
         <span class="wcool"><i></i></span>
       </div>
     `
+
+    // Los compañeros van pegados a tu arma y antes que las habilidades: son
+    // personajes, no mejoras, y la barra se lee como "quiénes somos" y
+    // después "qué sabemos hacer".
+    for (const key of refuerzos) {
+      const cDef = WEAPON_DEFS[WEAPON[key]]
+      const cColor = '#' + cDef.color.toString(16).padStart(6, '0')
+      html += `
+        <div class="wcard equipped mate" style="--w-color:${cColor}">
+          <span class="wtag">COMPAÑERO</span>
+          <span class="wname">${cDef.name}</span>
+          <span class="wstat">${cDef.role}</span>
+        </div>
+      `
+    }
 
     for (const o of owned) {
       const def = SKILL_DEFS[o.defIndex]

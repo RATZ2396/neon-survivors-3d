@@ -1,5 +1,6 @@
 import { CONFIG } from './GameConfig.js'
 import { SKILL_DEFS, SKILL } from './SkillDefs.js'
+import { WEAPON_DEFS } from './WeaponDefs.js'
 
 /**
  * UpgradeDefs — el mazo de mejoras que se ofrece al subir de nivel.
@@ -121,7 +122,40 @@ const SKILL_UPGRADES = SKILL_DEFS.map((def) => ({
   },
 }))
 
-export const UPGRADE_DEFS = [...SKILL_UPGRADES, ...STAT_UPGRADES]
+/**
+ * Compañeros: sumar un personaje al escuadrón.
+ *
+ * Una entrada POR PERSONAJE, derivada de WEAPON_DEFS igual que las
+ * habilidades se derivan de SKILL_DEFS. Eso da gratis las dos cosas que
+ * hacen falta: la carta puede decir a quién vas a sumar —una sola mejora
+ * "compañero al azar" tendría que mentir hasta que la elegís— y el sorteo
+ * del mazo, que ya es aleatorio con peso, elige cuál te ofrece.
+ *
+ * Un personaje nuevo es una fila en WEAPON_DEFS y aparece solo acá.
+ *
+ * NO TE PUEDE TOCAR EL TUYO ni uno repetido. Con los tres personajes de hoy
+ * eso hace que el escuadrón completo sea siempre uno de cada, y el azar
+ * decide el ORDEN en que los conseguís; con más personajes en la tabla pasa
+ * a decidir también cuáles.
+ */
+const COMPANION_UPGRADES = WEAPON_DEFS.map((def) => ({
+  key: 'C_' + def.key,
+  name: def.name + ' se suma',
+  desc: `${def.desc} Pelea a tu lado y te cubre lo que vos no mirás.`,
+  tag: 'COMPAÑERO',
+  color: def.color,
+  stacks: 1,
+  weight: 3,
+  available: (ctx) => {
+    if (!ctx.squad || ctx.squad.full) return false
+    // El tuyo no: ya lo estás jugando.
+    if (ctx.weapons?.def?.key === def.key) return false
+    return !ctx.squad.has(def.key)
+  },
+  apply: (ctx) => ctx.squad.add(def.key, ctx.player.position),
+}))
+
+export const UPGRADE_DEFS = [...SKILL_UPGRADES, ...COMPANION_UPGRADES, ...STAT_UPGRADES]
 
 /**
  * Elige n mejoras distintas que se puedan tomar ahora, con peso.
