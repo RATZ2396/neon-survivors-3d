@@ -86,6 +86,14 @@ export class EnemyManager {
      */
     this.dmgToPriority = 0
     this.dmgToRest = 0
+    /**
+     * Daño a las élites (minijefes Y jefes). Es OTRO reparto, no una parte
+     * del de arriba: `priorityTarget` es una regla del arma y `elite` una
+     * del diseño, y el minijefe tiene la segunda sin la primera. Cuando este
+     * contador no existía, todo el daño a los minijefes figuraba como daño a
+     * la horda y el informe no podía decir cómo te fue contra ellos.
+     */
+    this.dmgToElite = 0
 
     this.grid = new SpatialGrid(CONFIG.WORLD.ARENA_SIZE, CONFIG.ENEMIES.GRID_CELL, max)
 
@@ -257,8 +265,10 @@ export class EnemyManager {
     if (this._pending[i] === 0) this._pendingCount++
     this._pending[i] += amount
 
-    if (ENEMY_DEFS[this.type[i]].priorityTarget) this.dmgToPriority += amount
+    const def = ENEMY_DEFS[this.type[i]]
+    if (def.priorityTarget) this.dmgToPriority += amount
     else this.dmgToRest += amount
+    if (def.elite) this.dmgToElite += amount
   }
 
   /**
@@ -338,6 +348,7 @@ export class EnemyManager {
     this.killCount = 0
     this.dmgToPriority = 0
     this.dmgToRest = 0
+    this.dmgToElite = 0
   }
 
   /**

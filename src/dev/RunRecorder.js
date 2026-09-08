@@ -44,6 +44,17 @@ export class RunRecorder {
      */
     this.segManual = 0
     this.segAuto = 0
+
+    /**
+     * Todo lo que le pasó al escuadrón: cuándo entró cada uno y cuándo cayó.
+     *
+     * Sin esto el informe cuenta la partida entera menos la parte que
+     * estamos diseñando: no se puede saber si el compañero llegó a tiempo
+     * para el minijefe, ni si se murió a los diez segundos de reclutarlo.
+     */
+    this.escuadron = []
+    /** Puesto -> última arma que lo ocupó, para poder repartir el daño. */
+    this.puestos = {}
   }
 
   /** Arranca una grabación. Se llama al empezar la partida. */
@@ -62,9 +73,28 @@ export class RunRecorder {
   }
 
   /** Anota qué eligió el jugador al subir de nivel. */
-  anotarEleccion(nivel, texto) {
+  anotarEleccion(nivel, texto, t = 0) {
     if (!this.activo) return
-    this.decisiones.push({ nivel, elegido: texto })
+    this.decisiones.push({ t: +t.toFixed(1), nivel, elegido: texto })
+  }
+
+  /**
+   * Anota una entrada o una caída del escuadrón.
+   *
+   * @param {number} t segundo de la partida
+   * @param {'suma'|'cae'} ev
+   * @param {string} quien clave del arma del compañero
+   * @param {number} puesto índice del lugar que ocupa
+   * @param {number} [dano] lo que llegó a hacer, solo para el que cae
+   */
+  anotarEscuadron(t, ev, quien, puesto, dano = 0) {
+    if (!this.activo) return
+    // El que cae se lleva su daño anotado en el evento: su puesto se puede
+    // reusar, y el contador se reinicia para el que llegue.
+    const fila = { t: +t.toFixed(1), ev, quien }
+    if (ev === 'cae') fila.dano = Math.round(dano)
+    this.escuadron.push(fila)
+    if (ev === 'suma') this.puestos[puesto + 1] = quien
   }
 
   /**
@@ -103,6 +133,10 @@ export class RunRecorder {
       bajas: e.killCount,
       nivel: g.progression.level,
       fps: Math.round(fps),
+      // Cuántos compañeros hay vivos en este instante. Un número y no la
+      // lista: la lista completa está en `escuadron`, y acá lo que importa
+      // es poder cruzar "cuántos éramos" contra "cómo me fue".
+      esc: g.squad ? g.squad.size - 1 : 0,
     })
     if (g.boss.active) this.boss.push({ t, hp: Math.round(g.boss.hp) })
   }
@@ -136,6 +170,24 @@ export class RunRecorder {
         alBoss: Math.round(e.dmgToPriority),
         aLaHorda: Math.round(e.dmgToRest),
         pctAlBoss: totalDano > 0 ? +((100 * e.dmgToPriority) / totalDano).toFixed(2) : null,
+        /**
+         * A las élites: minijefes Y jefes. Es OTRO reparto, no una parte del
+         * de arriba — `alBoss` cuenta solo lo que el arma prioriza, y un
+         * minijefe no lleva esa marca. Mientras no existió este número, todo
+         * el daño a los minijefes figuraba como daño a la horda.
+         */
+        aElites: Math.round(e.dmgToElite),
+        pctAElites: totalDano > 0 ? +((100 * e.dmgToElite) / totalDano).toFixed(2) : null,
+      },
+
+      escuadron: {
+        eventos: this.escuadron,
+        /**
+         * Cuánto puso cada uno. Es el número que decide si el 70% de daño de
+         * un compañero (CONFIG.SQUAD.DAMAGE_MULT) está bien: el daño total
+         * del escuadrón no sirve para eso.
+         */
+        aporte: this._aporte(g),
       },
       apuntado: {
         segManual: +this.segManual.toFixed(1),
@@ -165,6 +217,35 @@ export class RunRecorder {
 
     this._enviar(informe)
     return informe
+  }
+
+  /**
+   * Reparto del daño de las BALAS por quien las disparó.
+   *
+   * Solo balas: las habilidades (escudo, rayo, onda) son tuyas y no salen de
+   * un arma, así que meterlas acá haría que tu columna dijera cosas que el
+   * compañero nunca podría hacer y la comparación dejaría de significar nada.
+   */
+  _aporte(g) {
+    const dmg = g.projectiles.damageByOwner
+    const out = [
+      { quien: 'vos', arma: g.weapons.def.name, dano: Math.round(dmg[0]), disparos: g.weapons.shotsFired },
+    ]
+
+    const miembros = g.squad ? g.squad.members : []
+    for (let i = 0; i < miembros.length; i++) {
+      const id = i + 1
+      const arma = miembros[i].weaponKey || this.puestos[id] || null
+      if (!arma && !dmg[id]) continue // ese puesto nunca se usó
+      out.push({
+        quien: 'compañero ' + id,
+        arma,
+        dano: Math.round(dmg[id] || 0),
+        disparos: miembros[i].weapons.shotsFired,
+        vivoAlFinal: miembros[i].active,
+      })
+    }
+    return out
   }
 
   /**

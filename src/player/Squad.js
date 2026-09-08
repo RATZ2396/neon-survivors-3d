@@ -48,7 +48,7 @@ class Companion {
    * @param {object} atlas el del jugador. Compartirlo evita generar de nuevo el
    *                       canvas de la textura, que es lo caro del soldado.
    */
-  constructor(scene, deps, atlas, offset) {
+  constructor(scene, deps, atlas, offset, ownerId) {
     this.offset = offset
 
     this.position = new THREE.Vector3()
@@ -118,6 +118,9 @@ class Companion {
     this.weapons.progression = deps.progression
     this.weapons.profile = deps.profile
     this.weapons.damageScale = CONFIG.SQUAD.DAMAGE_MULT
+    this.weapons.ownerId = ownerId
+    this.ownerId = ownerId
+    this.proyectiles = deps.projectiles
   }
 
   equip(key, playerPos) {
@@ -125,6 +128,10 @@ class Companion {
     this.active = true
     this.weapons.equip(key)
     this.weapons.reset()
+    // Un puesto se puede reusar cuando el anterior cae. El arma reinicia sus
+    // disparos, así que el daño acumulado tiene que reiniciarse con ella: si
+    // no, el informe le atribuiría al recién llegado lo que hizo el que murió.
+    this.proyectiles.damageByOwner[this.ownerId] = 0
 
     this.hp = this.maxHp
     this.invulnTimer = 0
@@ -272,8 +279,16 @@ export class Squad {
      * que los compañeros son uno menos.
      */
     this.members = CONFIG.SQUAD.ANGLES.slice(0, CONFIG.SQUAD.MAX - 1).map(
-      (_, i) => new Companion(scene, deps, atlas, puestoDe(i)),
+      // El id 0 es el jugador, así que los compañeros arrancan en 1.
+      (_, i) => new Companion(scene, deps, atlas, puestoDe(i), i + 1),
     )
+
+    /**
+     * Aviso de que alguien entró o cayó: (evento, clave, puesto). Lo engancha
+     * el GameManager para el grabador de partidas. El escuadrón no sabe que
+     * existe un grabador.
+     */
+    this.onCambio = null
 
     /**
      * LOS CUERPOS DEL ESCUADRÓN: vos primero, después los compañeros vivos.
@@ -326,10 +341,12 @@ export class Squad {
    */
   add(key, playerPos) {
     if (WEAPON[key] === undefined || this.full || this.has(key)) return false
-    for (const m of this.members) {
+    for (let i = 0; i < this.members.length; i++) {
+      const m = this.members[i]
       if (m.active) continue
       m.equip(key, playerPos)
       this._rebuildBodies()
+      this.onCambio?.('suma', key, i)
       return true
     }
     return false
@@ -352,10 +369,13 @@ export class Squad {
    */
   moveTo(delta, playerPos) {
     let cayo = false
-    for (const m of this.members) {
+    for (let i = 0; i < this.members.length; i++) {
+      const m = this.members[i]
       if (!m.active) continue
       m.update(delta, playerPos)
       if (m.isDead) {
+        // El aviso va ANTES de clear(), que le borra la clave del arma.
+        this.onCambio?.('cae', m.weaponKey, i)
         m.clear()
         cayo = true
       }

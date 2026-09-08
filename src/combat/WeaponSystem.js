@@ -95,6 +95,12 @@ export class WeaponSystem {
      * así el mismo sistema sirve para los dos dueños sin una sola rama.
      */
     this.damageScale = 1
+
+    /**
+     * Quién la lleva: 0 el jugador, 1 y 2 los compañeros. Viaja con cada
+     * bala para que el informe de partida pueda repartir el daño.
+     */
+    this.ownerId = 0
   }
 
   get def() {
@@ -393,7 +399,7 @@ export class WeaponSystem {
       }
     }
 
-    this.projectiles.fire(x, z, dirX, dirZ, this.def, damage, boomR, boomD)
+    this.projectiles.fire(x, z, dirX, dirZ, this.def, damage, boomR, boomD, this.ownerId)
     this.shotsFired++
   }
 }

@@ -113,6 +113,17 @@ export class GameManager {
      */
     this.contact = new ContactDamage(this.squad.bodies, this.enemies)
 
+    // El escuadrón le avisa al grabador cuándo entra y cuándo cae alguien.
+    // Él no sabe que existe un grabador: publica un aviso y ya.
+    this.squad.onCambio = (ev, key, puesto) =>
+      this.recorder?.anotarEscuadron(
+        this.waves.elapsed,
+        ev,
+        key,
+        puesto,
+        this.projectiles.damageByOwner[puesto + 1],
+      )
+
     /** Niveles ganados que todavía no eligieron mejora. */
     this._pendingLevels = 0
     /** Moneda que dejó la última partida. La muestra la pantalla de muerte. */
@@ -577,7 +588,7 @@ export class GameManager {
     this.sound.play('UPGRADE_PICK')
     up.apply(this._upgradeContext())
     this.progression.markTaken(up.key)
-    this.recorder?.anotarEleccion(this.progression.level, up.name || up.key)
+    this.recorder?.anotarEleccion(this.progression.level, up.name || up.key, this.waves.elapsed)
     this._pendingLevels--
 
     // Si subiste varios niveles de una, se elige uno por vez.

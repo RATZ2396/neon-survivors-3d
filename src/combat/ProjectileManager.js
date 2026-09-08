@@ -55,6 +55,17 @@ export class ProjectileManager {
     /** Último enemigo golpeado, por id: evita que una bala que atraviesa le
      *  pegue dos veces al mismo mientras sigue solapada con él. */
     this.lastHitId = new Int32Array(max)
+    /**
+     * Quién disparó cada bala: 0 sos vos, 1 y 2 los compañeros.
+     *
+     * Existe para una sola pregunta, y es de balance: ¿cuánto aporta de
+     * verdad un compañero? Sin esto, el informe de partida solo puede decir
+     * el daño total del escuadrón, que es justo el número que no sirve para
+     * decidir si el 70% de daño (CONFIG.SQUAD.DAMAGE_MULT) está bien.
+     */
+    this.owner = new Uint8Array(max)
+    /** Daño acumulado por cada uno. Se reinicia con clear(). */
+    this.damageByOwner = new Float64Array(CONFIG.SQUAD.MAX)
 
     this._initMesh(scene)
   }
@@ -77,10 +88,11 @@ export class ProjectileManager {
    * mejoras que había en ese instante. Si se leyera al impactar, una bala en
    * vuelo cambiaría de daño al subir de nivel a mitad de camino.
    */
-  fire(x, z, dirX, dirZ, def, damageMult = 1, boomRadius = 0, boomDamage = 0) {
+  fire(x, z, dirX, dirZ, def, damageMult = 1, boomRadius = 0, boomDamage = 0, owner = 0) {
     if (this.count >= this.max) return false
 
     const i = this.count++
+    this.owner[i] = owner
     this.posX[i] = x
     this.posZ[i] = z
     this.velX[i] = dirX * def.speed
@@ -111,6 +123,7 @@ export class ProjectileManager {
       this.velZ[i] = this.velZ[last]
       this.life[i] = this.life[last]
       this.damage[i] = this.damage[last]
+      this.owner[i] = this.owner[last]
       this.size[i] = this.size[last]
       this.pierce[i] = this.pierce[last]
       this.explodeRadius[i] = this.explodeRadius[last]
@@ -130,6 +143,9 @@ export class ProjectileManager {
     this.count = 0
     this.mesh.count = 0
     this.hitCount = 0
+    // El reparto de daño es DE LA PARTIDA. Sin esta línea, el informe de la
+    // segunda partida vendría con el daño de la primera sumado adentro.
+    this.damageByOwner.fill(0)
   }
 
   /**
@@ -164,6 +180,7 @@ export class ProjectileManager {
       if (hit === -1) continue
 
       e.queueDamage(hit, this.damage[i])
+      this.damageByOwner[this.owner[i]] += this.damage[i]
       this.lastHitId[i] = e.id[hit]
       this.hitCount++
       this.hitX = x
@@ -172,7 +189,7 @@ export class ProjectileManager {
       if (this.mods.knockback > 0) this._knockback(hit, i)
 
       if (this.explodeRadius[i] > 0) {
-        this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit)
+        this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit, this.owner[i])
         this._remove(i)
         continue
       }
@@ -317,7 +334,7 @@ export class ProjectileManager {
   }
 
   /** Daño en área. Recorre la horda entera: pasa pocas veces por segundo. */
-  _explode(x, z, radius, damage, skipIndex) {
+  _explode(x, z, radius, damage, skipIndex, owner = 0) {
     const e = this.enemies
     const rSq = radius * radius
 
@@ -325,7 +342,9 @@ export class ProjectileManager {
       if (j === skipIndex) continue // ya recibió el impacto directo
       const dx = e.posX[j] - x
       const dz = e.posZ[j] - z
-      if (dx * dx + dz * dz <= rSq) e.queueDamage(j, damage)
+      if (dx * dx + dz * dz > rSq) continue
+      e.queueDamage(j, damage)
+      this.damageByOwner[owner] += damage
     }
   }
 

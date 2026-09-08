@@ -26,6 +26,13 @@
  * los dos últimos bloques, y en WAVE_STAGES (WaveManager.js) para el primero.
  * Esta tabla dice QUÉ es cada uno, no cuándo aparece.
  *
+ * DOS MARCAS QUE PARECÍAN UNA. `priorityTarget` dice que EL ARMA lo prefiere
+ * aunque no sea el más cercano; `elite` dice que es una pelea con nombre. El
+ * jefe tiene las dos, pero el minijefe solo la segunda: pelea rodeado de
+ * basura y priorizarlo haría que te maten mientras le apuntás. Cuando eran
+ * una sola marca, todo el daño a los minijefes se contaba como daño a la
+ * horda y el informe de partida no podía decir cómo te fue contra ellos.
+ *
  * `coin` es la moneda que suelta al morir, y cae al piso como la gema: hay
  * que ir a buscarla. Reemplazó al pago por baja que antes se cobraba solo al
  * terminar la partida (ver CONFIG.META).
@@ -158,6 +165,7 @@ export const ENEMY_DEFS = [
      * porque suele ser lo más cercano, no porque lo prefiera.
      */
     key: 'BRUTE',
+    elite: true,
     name: 'El Bruto',
     hp: 650,
     speed: 2.9,
@@ -177,6 +185,7 @@ export const ENEMY_DEFS = [
      * cuando moverte es lo más caro.
      */
     key: 'WARDEN',
+    elite: true,
     name: 'El Guardián',
     blocksShots: true,
     hp: 950,
@@ -191,6 +200,7 @@ export const ENEMY_DEFS = [
   {
     /** El Acechador: poca vida, mucha velocidad y una embestida que avisa poco. */
     key: 'STALKER',
+    elite: true,
     name: 'El Acechador',
     hp: 420,
     speed: 3.6,
@@ -223,6 +233,7 @@ export const ENEMY_DEFS = [
      * los seis tipos del primer bloque.
      */
     key: 'CUBE_KING',
+    elite: true,
     /** Blanco prioritario: el arma le apunta aunque no sea el más cercano. */
     priorityTarget: true,
     /** Frena las balas. La basura no; él sí. Ver ProjectileManager. */
@@ -257,6 +268,7 @@ export const ENEMY_DEFS = [
      * respirar.
      */
     key: 'REAPER',
+    elite: true,
     priorityTarget: true,
     blocksShots: true,
     name: 'El Segador',
@@ -278,6 +290,7 @@ export const ENEMY_DEFS = [
      * reflejos, es de no quedarte quieto disparando.
      */
     key: 'COLOSSUS',
+    elite: true,
     priorityTarget: true,
     blocksShots: true,
     name: 'El Coloso',
