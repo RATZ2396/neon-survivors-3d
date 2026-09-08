@@ -137,7 +137,7 @@ borraron y en su lugar el mazo del menú de nivel ofrece personajes.
 | Cuántos | 3 contando al principal (`CONFIG.SQUAD.MAX`) |
 | Cuáles te ofrece | cualquiera menos el tuyo y los que ya tenés |
 | Daño | 70% del arma (`CONFIG.SQUAD.DAMAGE_MULT`) |
-| Puesto | detrás tuyo, a los costados, **en coordenadas del mundo** |
+| Formación | un **círculo** de radio 1.5 alrededor tuyo; los dos puestos van atrás, a los costados |
 
 **Tres decisiones que conviene conocer:**
 
@@ -152,6 +152,14 @@ borraron y en su lugar el mazo del menú de nivel ofrece personajes.
 3. **El puesto es del mundo, no de hacia dónde mirás.** Atado a la orientación,
    girar en el lugar los haría dar vueltas alrededor tuyo y la cobertura de la
    espalda —que es todo el punto— cambiaría cada vez que cambiás de dirección.
+
+La formación se guarda en **polares** —un radio y una lista de ángulos— para que
+se lea de un vistazo que es un círculo. Empezó siendo dos posiciones fijas a
+(±2.0, 1.6): 2.56 unidades de distancia y 4 de separación entre ellos, que con la
+cámara angulada no se veía como un escuadrón sino como tres personas paradas
+lejos una de otra. Con radio 1.5 quedan 0.7 unidades de aire entre cuerpo y
+cuerpo, y corriendo a fondo la formación se estira solo hasta 1.93. Un puesto
+nuevo es un ángulo nuevo en la lista.
 
 Cada uno lleva un **anillo de color** en el piso, del color de su arma: con la
 cámara cenital, mirarle el arma al muñeco no es una opción realista.

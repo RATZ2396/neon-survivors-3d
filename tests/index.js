@@ -1,6 +1,7 @@
 import { describe, test, expect, resumen } from './run.js'
 
 import { CONFIG } from '../src/config/GameConfig.js'
+import { puestoDe } from '../src/player/Squad.js'
 import { Progression } from '../src/progression/Progression.js'
 import { PlayerProfile } from '../src/meta/PlayerProfile.js'
 import { META_TREES, costOfLevel, modifiersFor } from '../src/config/MetaDefs.js'
@@ -2066,19 +2067,36 @@ describe('Escuadrón', () => {
     expect(suya.damageMult).toBeLessThan(mia.damageMult)
   })
 
-  test('los puestos alcanzan para todos los lugares del escuadrón', () => {
-    // Si alguien sube MAX sin agregar un puesto, el tercer compañero no
+  test('hay un puesto por cada lugar del escuadrón', () => {
+    // Si alguien sube MAX sin agregar un ángulo, el tercer compañero no
     // tendría dónde pararse y la mejora se aplicaría sin que aparezca nadie.
-    expect(CONFIG.SQUAD.OFFSETS.length).toBe(CONFIG.SQUAD.MAX - 1)
+    expect(CONFIG.SQUAD.ANGLES.length).toBe(CONFIG.SQUAD.MAX - 1)
   })
 
-  test('los puestos están detrás del jugador, no encima', () => {
-    // Detrás en coordenadas del mundo (+Z es hacia la cámara). Que estén
-    // separados es lo que hace que cubran algo distinto de lo tuyo.
-    for (const o of CONFIG.SQUAD.OFFSETS) {
-      expect(o.z).toBeGreaterThan(0)
-      expect(Math.abs(o.x)).toBeGreaterThan(1)
+  test('todos los puestos caen sobre el mismo círculo', () => {
+    // Es la forma que pide el diseño: un círculo alrededor del jugador, no
+    // dos posiciones sueltas que se fueron corriendo de a poco.
+    for (let i = 0; i < CONFIG.SQUAD.ANGLES.length; i++) {
+      const p = puestoDe(i)
+      expect(Math.hypot(p.x, p.z)).toBeCloseTo(CONFIG.SQUAD.RADIUS, 1e-6)
     }
+  })
+
+  test('nadie se para delante del jugador', () => {
+    // Delante taparía lo único que hay que ver: de dónde viene la horda.
+    // +Z es hacia la cámara, o sea detrás.
+    for (let i = 0; i < CONFIG.SQUAD.ANGLES.length; i++) {
+      expect(puestoDe(i).z).toBeGreaterThan(0)
+    }
+  })
+
+  test('están cerca: el escuadrón se tiene que leer como un grupo', () => {
+    // Estaban a 2.56 y se veían como tres personas sueltas. El radio manda,
+    // y tiene que dejar aire entre cuerpos sin abrir la formación: el jugador
+    // y cada compañero miden 0.4 de radio.
+    const aire = CONFIG.SQUAD.RADIUS - CONFIG.PLAYER.RADIUS * 2
+    expect(aire).toBeGreaterThan(0.3)
+    expect(CONFIG.SQUAD.RADIUS).toBeLessThan(2)
   })
 })
 

@@ -284,21 +284,42 @@ export const CONFIG = {
     /** Personajes a la vez, CONTANDO al principal. */
     MAX: 3,
     /**
-     * Dónde se para cada compañero, relativo al jugador y en coordenadas
-     * DEL MUNDO, no de hacia dónde mira.
+     * LA FORMACIÓN ES UN CÍRCULO ALREDEDOR TUYO, y se describe en polares
+     * justamente para que se lea como un círculo y no como dos puntos sueltos.
      *
-     * Es la diferencia entre una formación y un carrusel: atados a la
-     * orientación, girar en el lugar los haría dar vueltas alrededor tuyo y
-     * la cobertura de la espalda —que es todo el punto— cambiaría cada vez
-     * que cambiás de dirección. En coordenadas del mundo, la espalda de la
-     * formación mira siempre a la cámara y el jugador puede confiar en ella.
+     * Primero fueron dos posiciones fijas a (±2.0, 1.6) — 2.56 unidades de
+     * distancia y 4 unidades de separación entre ellos. Con la cámara angulada
+     * eso no se veía como un escuadrón: se veía como tres personas paradas
+     * lejos una de otra, y el jugador ni las registraba como suyas.
+     *
+     * El radio manda sobre todo lo demás. 1.5 deja 0.7 unidades de aire entre
+     * cuerpo y cuerpo (el jugador y cada compañero miden 0.4 de radio): pegados
+     * sin encimarse.
      */
-    OFFSETS: [
-      { x: -2.0, z: 1.6 },
-      { x: 2.0, z: 1.6 },
-    ],
-    /** Qué tan pegado te sigue; mayor = menos rezagado. */
-    FOLLOW: 6.0,
+    RADIUS: 1.5,
+    /**
+     * Dónde se para cada uno sobre ese círculo, en grados. 0 es adelante (-Z,
+     * hacia el fondo de la pantalla) y crece hacia la derecha, así que 180 es
+     * justo detrás.
+     *
+     * Los dos van atrás, a los costados: nadie se para delante tuyo, porque
+     * taparía lo único que necesitás ver, que es de dónde viene la horda.
+     *
+     * Los ángulos son DEL MUNDO, no de hacia dónde mirás. Atados a la
+     * orientación, girar en el lugar los haría dar vueltas alrededor tuyo y la
+     * cobertura de la espalda —que es todo el punto— cambiaría cada vez que
+     * cambiás de dirección. Un puesto nuevo es un ángulo nuevo en esta lista.
+     */
+    ANGLES: [225, 135],
+    /**
+     * Qué tan pegado te sigue; mayor = menos rezagado.
+     *
+     * El rezago en régimen es velocidad/FOLLOW: con 6 y corriendo a 6 u/s se
+     * quedaban una unidad atrás, que sobre un radio de 1.5 es casi el doble de
+     * lejos. Con 10 el arrastre baja a 0.6 y siguen leyéndose como que te
+     * siguen, no como que están pegados con cinta.
+     */
+    FOLLOW: 10.0,
     /**
      * Daño del compañero como fracción del arma.
      *

@@ -176,6 +176,20 @@ class Companion {
   }
 }
 
+/**
+ * El puesto número i del círculo, en coordenadas del mundo relativas al
+ * jugador.
+ *
+ * La formación se guarda en polares (radio + ángulos) porque así se lee de un
+ * vistazo que es UN CÍRCULO alrededor tuyo; acá se pasa a x/z una sola vez, al
+ * crear cada puesto. 0° es adelante (-Z) y crece hacia la derecha.
+ */
+export function puestoDe(i) {
+  const a = (CONFIG.SQUAD.ANGLES[i] * Math.PI) / 180
+  const r = CONFIG.SQUAD.RADIUS
+  return { x: Math.sin(a) * r, z: -Math.cos(a) * r }
+}
+
 export class Squad {
   /**
    * @param {object} deps { enemies, projectiles, progression, profile }
@@ -186,8 +200,8 @@ export class Squad {
      * Un puesto por lugar libre del escuadrón. MAX cuenta al principal, así
      * que los compañeros son uno menos.
      */
-    this.members = CONFIG.SQUAD.OFFSETS.slice(0, CONFIG.SQUAD.MAX - 1).map(
-      (offset) => new Companion(scene, deps, atlas, offset),
+    this.members = CONFIG.SQUAD.ANGLES.slice(0, CONFIG.SQUAD.MAX - 1).map(
+      (_, i) => new Companion(scene, deps, atlas, puestoDe(i)),
     )
   }
 
