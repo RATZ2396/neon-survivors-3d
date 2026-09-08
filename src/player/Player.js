@@ -15,6 +15,12 @@ export class Player {
     const { RADIUS, HEIGHT } = CONFIG.PLAYER
 
     this.position = new THREE.Vector3(0, 0, 0)
+    /**
+     * Radio de su cuerpo. Estaba solo en la config, y ahora hace falta como
+     * campo: la horda resuelve el choque contra una lista de cuerpos —vos y
+     * los compañeros— y todos tienen que poder decir cuánto miden.
+     */
+    this.radius = RADIUS
     /** Dirección hacia la que mira, en radianes. 0 = -Z (adelante). */
     this.facing = 0
     /** Velocidad actual en unidades/segundo (magnitud, para animación/HUD). */

@@ -2,6 +2,7 @@ import { describe, test, expect, resumen } from './run.js'
 
 import { CONFIG } from '../src/config/GameConfig.js'
 import { puestoDe } from '../src/player/Squad.js'
+import { ContactDamage } from '../src/combat/ContactDamage.js'
 import { Progression } from '../src/progression/Progression.js'
 import { PlayerProfile } from '../src/meta/PlayerProfile.js'
 import { META_TREES, costOfLevel, modifiersFor } from '../src/config/MetaDefs.js'
@@ -2097,6 +2098,127 @@ describe('Escuadrón', () => {
     const aire = CONFIG.SQUAD.RADIUS - CONFIG.PLAYER.RADIUS * 2
     expect(aire).toBeGreaterThan(0.3)
     expect(CONFIG.SQUAD.RADIUS).toBeLessThan(2)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('El escuadrón entero tiene cuerpo', () => {
+  /**
+   * Un cuerpo cualquiera del escuadrón.
+   *
+   * El de verdad construye un soldado, o sea WebGL. Lo que importa acá es el
+   * CONTRATO —position, radius, invulnTimer, isDead y takeDamage()—, que es
+   * todo lo que la horda y el daño por contacto le piden a un cuerpo. Si
+   * mañana un compañero deja de cumplirlo, estos tests siguen pasando y el
+   * juego no: por eso Companion se escribió contra esta misma forma.
+   */
+  function cuerpo(x, z, hp = CONFIG.SQUAD.MAX_HP) {
+    return {
+      position: { x, y: 0, z },
+      radius: CONFIG.PLAYER.RADIUS,
+      hp,
+      maxHp: hp,
+      invulnTimer: 0,
+      isDead: false,
+      takeDamage(d) {
+        if (this.isDead || this.invulnTimer > 0) return
+        this.hp -= d
+        this.invulnTimer = CONFIG.PLAYER.INVULN_TIME
+        if (this.hp <= 0) {
+          this.hp = 0
+          this.isDead = true
+        }
+      },
+    }
+  }
+
+  test('la horda le pega al compañero, no solo al jugador', () => {
+    // Eran fantasmas: los enemigos les pasaban por adentro y no recibían
+    // nada. Un escuadrón en el que solo uno puede morir no es un escuadrón.
+    const e = new EnemyManager(escena)
+    const yo = cuerpo(0, 0, 100)
+    const companero = cuerpo(10, 0)
+    const contacto = new ContactDamage([yo, companero], e)
+
+    e.spawn(ENEMY_TYPE.NORMAL, 10, 0) // encima del compañero, lejos de mí
+    contacto.update(0.016)
+
+    expect(companero.hp).toBeLessThan(CONFIG.SQUAD.MAX_HP)
+    expect(yo.hp).toBe(100)
+  })
+
+  test('duele el más fuerte de los que lo tocan, no la suma', () => {
+    // Misma regla que para el jugador: sumar a todos los que te tocan escala
+    // de forma explosiva con el tamaño de la horda.
+    const e = new EnemyManager(escena)
+    const c = cuerpo(0, 0)
+    const contacto = new ContactDamage([c], e)
+
+    e.spawn(ENEMY_TYPE.NORMAL, 0, 0)
+    e.spawn(ENEMY_TYPE.TANK, 0, 0)
+    contacto.update(0.016)
+
+    const tanque = ENEMY_DEFS[ENEMY_TYPE.TANK].damage
+    expect(c.hp).toBeCloseTo(CONFIG.SQUAD.MAX_HP - tanque, 1e-6)
+  })
+
+  test('la invulnerabilidad es de cada uno', () => {
+    // Si fuera compartida, que te toquen a vos volvería inmune al compañero.
+    const e = new EnemyManager(escena)
+    const yo = cuerpo(0, 0, 100)
+    const companero = cuerpo(10, 0)
+    const contacto = new ContactDamage([yo, companero], e)
+
+    e.spawn(ENEMY_TYPE.NORMAL, 0, 0)
+    e.spawn(ENEMY_TYPE.NORMAL, 10, 0)
+    contacto.update(0.016)
+
+    expect(yo.invulnTimer).toBeGreaterThan(0)
+    expect(companero.invulnTimer).toBeGreaterThan(0)
+    expect(yo.hp).toBeLessThan(100)
+    expect(companero.hp).toBeLessThan(CONFIG.SQUAD.MAX_HP)
+  })
+
+  test('la horda no atraviesa a un compañero', () => {
+    const e = new EnemyManager(escena)
+    const companero = cuerpo(5, 0)
+    e.spawn(ENEMY_TYPE.NORMAL, 5, 0) // exactamente encima
+
+    e.update(0.016, { x: 0, y: 0, z: 0 }, [companero])
+
+    const d = Math.hypot(e.posX[0] - 5, e.posZ[0] - 0)
+    const minimo = CONFIG.PLAYER.RADIUS + ENEMY_DEFS[ENEMY_TYPE.NORMAL].radius
+    expect(d).toBeGreaterThan(minimo - 0.001)
+  })
+
+  test('sin lista de cuerpos, la horda sigue chocando contra el jugador', () => {
+    // El parámetro es opcional a propósito: no todo el que actualiza la horda
+    // tiene un escuadrón (los tests viejos, por ejemplo).
+    const e = new EnemyManager(escena)
+    // Pegado pero no EXACTAMENTE encima: a distancia cero no hay dirección
+    // hacia la que empujar, y el resolutor lo saltea a propósito.
+    e.spawn(ENEMY_TYPE.NORMAL, 0.1, 0)
+
+    e.update(0.016, { x: 0, y: 0, z: 0 })
+
+    const d = Math.hypot(e.posX[0], e.posZ[0])
+    const minimo = CONFIG.PLAYER.RADIUS + ENEMY_DEFS[ENEMY_TYPE.NORMAL].radius
+    expect(d).toBeGreaterThan(minimo - 0.001)
+  })
+
+  test('un cuerpo caído deja de recibir golpes', () => {
+    const e = new EnemyManager(escena)
+    const c = cuerpo(0, 0, 5)
+    const contacto = new ContactDamage([c], e)
+    e.spawn(ENEMY_TYPE.TANK, 0, 0)
+
+    contacto.update(0.016)
+    expect(c.isDead).toBe(true)
+    expect(c.hp).toBe(0)
+
+    c.invulnTimer = 0
+    contacto.update(0.016)
+    expect(c.hp).toBe(0) // no se sigue castigando a un caído
   })
 })
 

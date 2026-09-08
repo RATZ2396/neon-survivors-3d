@@ -137,19 +137,34 @@ borraron y en su lugar el mazo del menú de nivel ofrece personajes.
 | Cuántos | 3 contando al principal (`CONFIG.SQUAD.MAX`) |
 | Cuáles te ofrece | cualquiera menos el tuyo y los que ya tenés |
 | Daño | 70% del arma (`CONFIG.SQUAD.DAMAGE_MULT`) |
+| Vida | 60, y se cura sola con la misma regla que la tuya |
 | Formación | un **círculo** de radio 1.5 alrededor tuyo; los dos puestos van atrás, a los costados |
 
-**Tres decisiones que conviene conocer:**
+**Están todos en la misma.** Tienen cuerpo: la horda no los atraviesa y el
+contacto les duele, con la misma ventana de invulnerabilidad que la tuya. Y
+comparten tu apuntado: si pasás a manual, apuntan los tres.
 
-1. **No se mueren y no chocan.** Un compañero cuesta una subida de nivel; una
-   mejora que se te puede evaporar no es una mejora, es una apuesta. Y no frenan
-   a la horda: si fueran obstáculos, pararse detrás de ellos sería la estrategia
-   dominante y el juego pasaría a ser esconderse.
-2. **No heredan tus habilidades.** Las de personaje están atadas a tu arma, así
+Durante un tiempo fueron fantasmas —los enemigos les pasaban por adentro y no
+recibían nada— porque la hitbox estaba solo en el principal. El argumento era
+que una mejora que se te puede evaporar no es una mejora; **el argumento estaba
+mal**, porque un escuadrón donde solo uno puede morir no comunica que sean un
+escuadrón. Lo que resuelve el problema de fondo no es sacarles el cuerpo, es
+que **se curan solos** cuando los sacás del peligro: una mala pasada duele, pero
+no te borra la subida de nivel.
+
+El que cae **libera su lugar**, así que podés reclutar a otro — aunque no al
+mismo, porque cada personaje se ofrece una sola vez por partida.
+
+El anillo del piso vira al rojo a medida que lo lastiman: es toda la barra de
+vida que necesita algo que no controlás.
+
+**Dos decisiones más:**
+
+1. **No heredan tus habilidades.** Las de personaje están atadas a tu arma, así
    que darle Rebote —de pistola— a un compañero con escopeta sería aplicar un
    modificador que nadie diseñó para eso. Sí heredan lo que no depende del arma:
    las mejoras del taller de **su** arma y las estadísticas de la partida.
-3. **El puesto es del mundo, no de hacia dónde mirás.** Atado a la orientación,
+2. **El puesto es del mundo, no de hacia dónde mirás.** Atado a la orientación,
    girar en el lugar los haría dar vueltas alrededor tuyo y la cobertura de la
    espalda —que es todo el punto— cambiaría cada vez que cambiás de dirección.
 

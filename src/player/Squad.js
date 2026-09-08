@@ -5,6 +5,9 @@ import { SoldierModel } from './SoldierModel.js'
 import { WeaponSystem } from '../combat/WeaponSystem.js'
 import { createWeaponMods } from '../combat/WeaponMods.js'
 
+/** Color al que tiende el anillo de un compañero herido. El mismo rojo del HUD. */
+const HERIDO = new THREE.Color(0xff4d6d)
+
 /**
  * Squad — el escuadrón: vos y hasta dos compañeros.
  *
@@ -21,20 +24,21 @@ import { createWeaponMods } from '../combat/WeaponMods.js'
  * comentario de WeaponDefs), así que agregar un personaje sigue siendo agregar
  * una fila ahí, y aparece solo como opción al subir de nivel.
  *
- * TRES DECISIONES QUE CONVIENE CONOCER:
+ * ESTÁN TODOS EN LA MISMA. Tienen cuerpo: la horda no los atraviesa y el
+ * contacto les duele, igual que a vos. Durante un tiempo fueron fantasmas —los
+ * enemigos les pasaban por adentro y no recibían nada— y eso rompía lo único
+ * que un escuadrón tiene que comunicar. También comparten tu apuntado: si pasás
+ * a manual, apuntan todos.
  *
- * 1. NO SE MUEREN Y NO CHOCAN. Un compañero cuesta una subida de nivel; una
- *    mejora que se te puede evaporar no es una mejora, es una apuesta. Y no
- *    frenan a la horda: si fueran obstáculos, pararse detrás de ellos sería la
- *    estrategia dominante y el juego pasaría a ser esconderse.
+ * DOS DECISIONES QUE CONVIENE CONOCER:
  *
- * 2. NO HEREDAN TUS HABILIDADES. Las de personaje están atadas a tu arma
+ * 1. NO HEREDAN TUS HABILIDADES. Las de personaje están atadas a tu arma
  *    (`weapon` en SkillDefs), así que darle Rebote —de pistola— a un compañero
  *    con escopeta sería aplicar un modificador que nadie diseñó para eso. Sí
  *    heredan lo que no depende del arma: las mejoras del taller de SU arma y
  *    las estadísticas que ganás en la partida.
  *
- * 3. SE CONSTRUYEN AL ARRANCAR, no al conseguirlos. Armar un soldado no es
+ * 2. SE CONSTRUYEN AL ARRANCAR, no al conseguirlos. Armar un soldado no es
  *    gratis, y hacerlo en el instante en que elegís la mejora metería un tirón
  *    justo cuando te están correteando. Arrancan invisibles y esperan.
  */
@@ -56,6 +60,18 @@ class Companion {
     this.active = false
     this.weaponKey = null
 
+    /**
+     * Cuerpo y vida, con la misma forma que los del jugador: `position`,
+     * `radius`, `invulnTimer`, `isDead` y `takeDamage()`. Es lo que le permite
+     * a la horda chocarlo y a ContactDamage pegarle sin saber qué clase es.
+     */
+    this.radius = CONFIG.PLAYER.RADIUS
+    this.maxHp = CONFIG.SQUAD.MAX_HP
+    this.hp = this.maxHp
+    this.invulnTimer = 0
+    this.sinceDamage = 0
+    this.isDead = false
+
     this.mesh = new THREE.Group()
     this.model = new SoldierModel({ height: CONFIG.PLAYER.HEIGHT, atlas })
     this.mesh.add(this.model.object3D)
@@ -64,7 +80,8 @@ class Companion {
 
     // Anillo de color en el piso: es lo único que dice de un vistazo QUÉ
     // personaje es cada uno. Con la cámara cenital, mirarle el arma al muñeco
-    // no es una opción realista.
+    // no es una opción realista. Además vira al rojo cuando está herido, que es
+    // toda la barra de vida que necesita algo que no controlás.
     const geo = new THREE.RingGeometry(
       CONFIG.SQUAD.RING_RADIUS - 0.07,
       CONFIG.SQUAD.RING_RADIUS,
@@ -85,11 +102,15 @@ class Companion {
     this.ring.visible = false
     scene.add(this.ring)
 
+    this._colorBase = new THREE.Color(0xffffff)
+    /** Última fracción de vida pintada, para no tocar el material cada frame. */
+    this._pintado = -1
+
     /**
      * Su propia arma, con sus propios modificadores EN CERO.
      *
      * El objeto de mods es nuevo y no el compartido del jugador: ese lo escribe
-     * SkillSystem con las habilidades de TU arma (ver la decisión 2 de arriba).
+     * SkillSystem con las habilidades de TU arma (ver la decisión 1 de arriba).
      * WeaponSystem solo le pide a su dueño `position`, `isMoving`,
      * `faceTowards()` y `recoil()` — todo lo que esta clase implementa.
      */
@@ -105,15 +126,22 @@ class Companion {
     this.weapons.equip(key)
     this.weapons.reset()
 
+    this.hp = this.maxHp
+    this.invulnTimer = 0
+    this.sinceDamage = 0
+    this.isDead = false
+
     // Aparece ya en su lugar, no viajando desde el origen del mundo.
     this.position.set(playerPos.x + this.offset.x, 0, playerPos.z + this.offset.z)
     this.mesh.position.copy(this.position)
     this.mesh.visible = true
 
     const def = WEAPON_DEFS[WEAPON[key]]
-    this.ring.material.color.setHex(def.color)
+    this._colorBase.setHex(def.color)
+    this._pintado = -1
     this.ring.visible = true
     this.model.reset()
+    this.model.setHit(false)
   }
 
   clear() {
@@ -135,8 +163,28 @@ class Companion {
     this.model.recoil(strength)
   }
 
+  /**
+   * Misma firma y mismas reglas que las del jugador: un golpe, y después un
+   * instante de invulnerabilidad. Sin esa ventana, cinco enemigos tocándolo en
+   * el mismo frame lo matan de una y no dura ni un encontronazo.
+   */
+  takeDamage(amount) {
+    if (this.isDead || !this.active || this.invulnTimer > 0) return
+
+    this.hp -= amount
+    this.invulnTimer = CONFIG.PLAYER.INVULN_TIME
+    this.sinceDamage = 0
+
+    if (this.hp <= 0) {
+      this.hp = 0
+      this.isDead = true
+    }
+  }
+
   update(delta, playerPos) {
     if (!this.active) return
+
+    this._regenerate(delta)
 
     const tx = playerPos.x + this.offset.x
     const tz = playerPos.z + this.offset.z
@@ -163,6 +211,27 @@ class Companion {
 
     if (this.isMoving) this._turnTowards(Math.atan2(-dx, -dz), delta)
     this.model.update(delta, this.currentSpeed, this.isMoving)
+    this.model.setHit(this.invulnTimer > 0)
+    this._pintarVida()
+  }
+
+  /** Se cura solo con la misma regla que el jugador: mientras no lo toquen. */
+  _regenerate(delta) {
+    this.sinceDamage += delta
+    if (this.sinceDamage < CONFIG.PLAYER.REGEN_DELAY) return
+    if (this.hp >= this.maxHp) return
+    this.hp = Math.min(this.maxHp, this.hp + CONFIG.PLAYER.REGEN_PER_SECOND * delta)
+  }
+
+  /** El anillo vira al rojo a medida que lo lastiman. */
+  _pintarVida() {
+    const vida = this.hp / this.maxHp
+    // Se redondea para no reescribir el material sesenta veces por segundo por
+    // un cambio que nadie puede ver.
+    const paso = Math.round(vida * 20) / 20
+    if (paso === this._pintado) return
+    this._pintado = paso
+    this.ring.material.color.copy(this._colorBase).lerp(HERIDO, 1 - paso)
   }
 
   /** Giro suavizado por el camino más corto. Igual que el del jugador. */
@@ -192,10 +261,12 @@ export function puestoDe(i) {
 
 export class Squad {
   /**
-   * @param {object} deps { enemies, projectiles, progression, profile }
+   * @param {object} deps { player, enemies, projectiles, progression, profile }
    * @param {object} atlas la textura del soldado del jugador, para compartirla
    */
   constructor(scene, deps, atlas) {
+    this.player = deps.player
+
     /**
      * Un puesto por lugar libre del escuadrón. MAX cuenta al principal, así
      * que los compañeros son uno menos.
@@ -203,6 +274,24 @@ export class Squad {
     this.members = CONFIG.SQUAD.ANGLES.slice(0, CONFIG.SQUAD.MAX - 1).map(
       (_, i) => new Companion(scene, deps, atlas, puestoDe(i)),
     )
+
+    /**
+     * LOS CUERPOS DEL ESCUADRÓN: vos primero, después los compañeros vivos.
+     *
+     * Una sola lista para dos cosas que tienen que coincidir siempre: contra
+     * quién choca la horda y a quién le pega. Con dos listas separadas, tarde o
+     * temprano una tendría a alguien que la otra no, y habría un compañero
+     * sólido pero inmune —o al revés, invisible y recibiendo golpes.
+     *
+     * Se muta EN EL LUGAR y nunca se reemplaza: EnemyManager y ContactDamage
+     * guardan esta misma referencia desde el arranque.
+     */
+    this.bodies = [this.player]
+  }
+
+  _rebuildBodies() {
+    this.bodies.length = 1
+    for (const m of this.members) if (m.active) this.bodies.push(m)
   }
 
   /** Cuántos personajes hay en total, contándote a vos. */
@@ -240,6 +329,7 @@ export class Squad {
     for (const m of this.members) {
       if (m.active) continue
       m.equip(key, playerPos)
+      this._rebuildBodies()
       return true
     }
     return false
@@ -248,13 +338,52 @@ export class Squad {
   /** Vuelve al escuadrón de una persona. Los muñecos se reusan, no se recrean. */
   reset() {
     for (const m of this.members) m.clear()
+    this._rebuildBodies()
   }
 
-  update(delta, playerPos) {
+  /**
+   * Los mueve a su puesto. Va ANTES de que la horda se actualice: si fuera
+   * después, la horda chocaría contra donde estaban el frame pasado, y en
+   * diagonal se los vería resbalar por adentro de los enemigos.
+   *
+   * Acá también caen. El que se queda sin vida sale del escuadrón y LIBERA SU
+   * LUGAR: perder un compañero duele, pero no te cierra la puerta a reclutar
+   * otro, que sería castigar dos veces la misma mala pasada.
+   */
+  moveTo(delta, playerPos) {
+    let cayo = false
     for (const m of this.members) {
       if (!m.active) continue
       m.update(delta, playerPos)
-      m.weapons.update(delta)
+      if (m.isDead) {
+        m.clear()
+        cayo = true
+      }
+    }
+    if (cayo) this._rebuildBodies()
+  }
+
+  /**
+   * Sus armas disparan. Va DESPUÉS de que la horda se movió, igual que la
+   * tuya: apuntarle a posiciones de hace un frame se nota en diagonal.
+   */
+  fire(delta) {
+    for (const m of this.members) if (m.active) m.weapons.update(delta)
+  }
+
+  /**
+   * Todos apuntan como vos.
+   *
+   * Si pasás a manual y ellos siguen en automático, el escuadrón deja de ser un
+   * escuadrón y pasan a ser tres tipos con opiniones distintas sobre a quién
+   * hay que dispararle.
+   */
+  setAim(active, x, z) {
+    for (const m of this.members) {
+      if (!m.active) continue
+      m.weapons.aimActive = active
+      m.weapons.aimX = x
+      m.weapons.aimZ = z
     }
   }
 }

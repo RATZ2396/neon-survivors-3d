@@ -329,6 +329,21 @@ export const CONFIG = {
      * diferencia acá.
      */
     DAMAGE_MULT: 0.7,
+    /**
+     * Vida de un compañero.
+     *
+     * TIENEN CUERPO: la horda no los atraviesa y el contacto les duele,
+     * igual que al jugador. Antes eran fantasmas —los enemigos les pasaban
+     * por adentro y no recibían nada— y eso rompía lo único que un
+     * escuadrón tiene que comunicar: que están todos en la misma.
+     *
+     * Menos que los 100 del jugador porque no los controlás: no podés
+     * esquivar por ellos, así que si aguantaran lo mismo aguantarían de
+     * hecho más. Se curan solos con la misma regla que vos (ver
+     * CONFIG.PLAYER.REGEN_DELAY), que es lo que evita que una mala pasada
+     * te cueste la subida de nivel entera.
+     */
+    MAX_HP: 60,
     /** Radio del anillo de color en el piso que dice quién es cada uno. */
     RING_RADIUS: 0.55,
   },

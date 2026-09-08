@@ -74,7 +74,6 @@ export class GameManager {
 
     this.projectiles = new ProjectileManager(this.scene, this.enemies, this.weaponMods)
     this.weapons = new WeaponSystem(this.player, this.enemies, this.projectiles, this.weaponMods)
-    this.contact = new ContactDamage(this.player, this.enemies)
     this.progression = new Progression()
     this.pickups = new PickupManager(this.scene)
     this.skills = new SkillSystem(this.player, this.enemies, this.progression, this.scene, this.weaponMods)
@@ -96,6 +95,7 @@ export class GameManager {
     this.squad = new Squad(
       this.scene,
       {
+        player: this.player,
         enemies: this.enemies,
         projectiles: this.projectiles,
         progression: this.progression,
@@ -103,6 +103,15 @@ export class GameManager {
       },
       this.player.model.atlas,
     )
+
+    /**
+     * El daño por contacto le pega A TODO EL ESCUADRÓN, y por eso se crea
+     * recién acá: recibe la lista de cuerpos que mantiene el escuadrón, que
+     * es la MISMA que usa la horda para chocar. Una sola lista para las dos
+     * cosas — si fueran dos, tarde o temprano habría un compañero sólido
+     * pero inmune, o invisible y recibiendo golpes.
+     */
+    this.contact = new ContactDamage(this.squad.bodies, this.enemies)
 
     /** Niveles ganados que todavía no eligieron mejora. */
     this._pendingLevels = 0
@@ -306,22 +315,36 @@ export class GameManager {
   }
 
   /** Deja en `weapons` el punto del suelo bajo el mouse, si el modo es manual. */
+  /**
+   * Deja en `weapons` el punto del suelo bajo el mouse, y se lo pasa AL
+   * ESCUADRÓN ENTERO.
+   *
+   * Antes solo apuntaba tu personaje y los compañeros seguían en automático:
+   * el escuadrón dejaba de ser un escuadrón y pasaban a ser tres tipos con
+   * opiniones distintas sobre a quién dispararle.
+   */
   _updateAim() {
     const input = this.input
     const w = this.weapons
     w.aimActive = input.aimManual && input.pointerSeen
-    if (!w.aimActive) return
 
-    this._raycaster.setFromCamera(input.pointer, this.camera)
-    // Si la cámara mirara al horizonte el rayo no cortaría el suelo. Con la
-    // cámara cenital de este juego no pasa, pero devolver null es gratis y
-    // evita escribir NaN en la posición de apuntado.
-    if (!this._raycaster.ray.intersectPlane(this._groundPlane, this._aimPoint)) {
-      w.aimActive = false
-      return
+    if (w.aimActive) {
+      this._raycaster.setFromCamera(input.pointer, this.camera)
+      // Si la cámara mirara al horizonte el rayo no cortaría el suelo. Con la
+      // cámara cenital de este juego no pasa, pero devolver null es gratis y
+      // evita escribir NaN en la posición de apuntado.
+      if (this._raycaster.ray.intersectPlane(this._groundPlane, this._aimPoint)) {
+        w.aimX = this._aimPoint.x
+        w.aimZ = this._aimPoint.z
+      } else {
+        w.aimActive = false
+      }
     }
-    w.aimX = this._aimPoint.x
-    w.aimZ = this._aimPoint.z
+
+    // Se avisa SIEMPRE, también cuando se apaga: si solo se avisara al
+    // encender, volver a automático dejaría a los compañeros disparándole
+    // para siempre al último lugar donde estuvo el mouse.
+    this.squad.setAim(w.aimActive, w.aimX, w.aimZ)
   }
 
   _onKey(e) {
@@ -760,7 +783,7 @@ export class GameManager {
       // ORDEN EXPLÍCITO DEL FRAME. No es arbitrario, cada paso depende del
       // anterior y cambiarlo de lugar produce bugs sutiles:
       //
-      //   1. el jugador se mueve
+      //   1. el jugador se mueve, y los compañeros caminan hacia su puesto
       //   2. las oleadas deciden qué aparece, alrededor de su posición nueva
       //   3. la horda persigue esa misma posición y construye la rejilla
       //      espacial del frame (si fuera antes que 1, la perseguiría con un
@@ -771,16 +794,20 @@ export class GameManager {
       //   5. los proyectiles se mueven y colisionan usando esa misma rejilla
       //   6. recién ACÁ se aplican las muertes: mientras 4 y 5 recorrían la
       //      horda, los índices tenían que quedarse quietos
-      //   7. la horda cobra: contacto con el jugador
+      //   7. la horda cobra: contacto contra todo el escuadrón
       //   8. la cámara sigue al jugador
       //   9. lo que quedó vivo se vuelca a la GPU
       this.player.update(delta, move)
+      // Los compañeros caminan a su puesto ANTES que la horda: si fuera
+      // después, la horda chocaría contra donde estaban el frame pasado.
+      this.squad.moveTo(delta, this.player.position)
       this.waves.update(delta, this.player.position)
       this.boss.update(delta)
-      this.enemies.update(delta, this.player.position)
+      // La horda choca contra TODO el escuadrón, no solo contra vos.
+      this.enemies.update(delta, this.player.position, this.squad.bodies)
       this._updateAim()
       this.weapons.update(delta)
-      this.squad.update(delta, this.player.position)
+      this.squad.fire(delta)
       this.skills.update(delta, this.time.elapsed)
       this.projectiles.update(delta)
       this.enemies.resolveDamage()

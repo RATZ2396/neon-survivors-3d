@@ -2,7 +2,7 @@ import { CONFIG } from '../config/GameConfig.js'
 import { ENEMY_DEFS } from '../config/EnemyDefs.js'
 
 /**
- * ContactDamage — el daño de la horda al jugador.
+ * ContactDamage — el daño de la horda al ESCUADRÓN.
  *
  * Vive separado de EnemyManager a propósito: la simulación de la horda decide
  * dónde está cada uno, el combate decide qué duele. Mezclarlos fue lo que en la
@@ -13,10 +13,16 @@ import { ENEMY_DEFS } from '../config/EnemyDefs.js'
  * tocándote al mismo tiempo te matan en un frame y el juego es injugable.
  */
 export class ContactDamage {
-  constructor(player, enemies) {
-    this.player = player
+  /**
+   * @param {Array} cuerpos vos primero, después los compañeros vivos. Es la
+   *   MISMA lista que usa la horda para chocar (la mantiene Squad, mutada en
+   *   el lugar): si fueran dos listas, tarde o temprano una tendría a alguien
+   *   que la otra no, y habría un compañero sólido pero inmune, o al revés.
+   */
+  constructor(cuerpos, enemies) {
+    this.cuerpos = cuerpos
     this.enemies = enemies
-    /** Cuántas veces recibió daño en la partida; útil para depurar balance. */
+    /** Cuántas veces recibió daño el escuadrón; útil para depurar balance. */
     this.hits = 0
   }
 
@@ -25,18 +31,22 @@ export class ContactDamage {
   }
 
   update(delta) {
-    const p = this.player
-    if (p.isDead) return
+    for (let i = 0; i < this.cuerpos.length; i++) this._golpear(this.cuerpos[i], delta)
+  }
 
-    if (p.invulnTimer > 0) {
-      p.invulnTimer -= delta
+  /** El golpe más fuerte que esté tocando a `c` este frame. */
+  _golpear(c, delta) {
+    if (c.isDead) return
+
+    if (c.invulnTimer > 0) {
+      c.invulnTimer -= delta
       return
     }
 
     const e = this.enemies
-    const px = p.position.x
-    const pz = p.position.z
-    const pr = CONFIG.PLAYER.RADIUS
+    const px = c.position.x
+    const pz = c.position.z
+    const pr = c.radius
 
     // Solo cuenta el golpe más fuerte del frame: si te rodean un drone y un
     // tanque, duele el tanque. Sumar el daño de todos los que te tocan escala
@@ -56,7 +66,7 @@ export class ContactDamage {
 
     if (worst === 0) return
 
-    p.takeDamage(worst)
+    c.takeDamage(worst)
     this.hits++
   }
 }

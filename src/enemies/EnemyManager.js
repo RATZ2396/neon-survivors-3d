@@ -349,7 +349,12 @@ export class EnemyManager {
    * @param {number} delta
    * @param {THREE.Vector3} playerPos
    */
-  update(delta, playerPos) {
+  /**
+   * @param {Array<{position:{x:number,z:number}, radius:number}>} [cuerpos]
+   *   contra qué choca la horda. Sin esto choca solo contra el jugador, que
+   *   es lo que hacía cuando era el único con cuerpo.
+   */
+  update(delta, playerPos, cuerpos = null) {
     const n = this.count
     if (n === 0) return
 
@@ -365,7 +370,19 @@ export class EnemyManager {
 
     this._markBlocked(playerPos, n)
     this._chase(delta, playerPos, n)
-    this._resolvePlayer(playerPos, n)
+
+    // Persiguen SIEMPRE al jugador, choquen contra quien choquen: los
+    // compañeros son un obstáculo, no un blanco alternativo. Si la horda
+    // eligiera a quién perseguir, poner un compañero de carnada sería la
+    // jugada dominante y el juego pasaría a ser esconderse detrás suyo.
+    if (cuerpos) {
+      for (let b = 0; b < cuerpos.length; b++) {
+        const c = cuerpos[b]
+        this._pushOut(c.position.x, c.position.z, c.radius, n)
+      }
+    } else {
+      this._pushOut(playerPos.x, playerPos.z, CONFIG.PLAYER.RADIUS, n)
+    }
   }
 
   /** Vuelca el estado a la GPU. Último paso del frame. */
@@ -580,17 +597,13 @@ export class EnemyManager {
   }
 
   /**
-   * Los enemigos no atraviesan al jugador: se amontonan a su alrededor.
+   * Los enemigos no atraviesan un cuerpo: se amontonan a su alrededor.
    *
    * Acá NO se aplica daño. El daño por contacto es Parte D (combate), y
    * mezclarlo con la resolución de colisión sería repartir la misma
    * responsabilidad en dos archivos distintos.
    */
-  _resolvePlayer(playerPos, n) {
-    const pr = CONFIG.PLAYER.RADIUS
-    const px = playerPos.x
-    const pz = playerPos.z
-
+  _pushOut(px, pz, pr, n) {
     for (let i = 0; i < n; i++) {
       const dx = this.posX[i] - px
       const dz = this.posZ[i] - pz
