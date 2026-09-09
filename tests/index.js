@@ -1319,8 +1319,10 @@ describe('El mazo filtra por arma', () => {
 
   test('la base compartida la ven todas', () => {
     for (const w of WEAPON_DEFS) {
-      expect(disponibles(w.key)).toContain('S_ORBIT')
-      expect(disponibles(w.key)).toContain('S_PULSE')
+      expect(disponibles(w.key)).toContain('S_SAWS')
+      expect(disponibles(w.key)).toContain('S_FROST')
+      expect(disponibles(w.key)).toContain('S_LURE')
+      expect(disponibles(w.key)).toContain('S_SWEEP')
     }
   })
 })
@@ -1535,7 +1537,8 @@ describe('Balas con habilidades', () => {
 describe('SkillSystem', () => {
   function armar() {
     const enemies = new EnemyManager(escena)
-    const player = { position: { x: 0, y: 0, z: 0 } }
+    // `facing` es la rotación del CUERPO: la guadaña corta hacia ahí.
+    const player = { position: { x: 0, y: 0, z: 0 }, facing: 0 }
     const mods = createWeaponMods()
     const s = new SkillSystem(player, enemies, new Progression(), escena, mods)
     return { s, enemies, mods }
@@ -1557,21 +1560,103 @@ describe('SkillSystem', () => {
 
   test('las que no son de arma no tocan los modificadores', () => {
     const { s, mods } = armar()
-    s.grant('ORBIT')
+    s.grant('SAWS')
     s.grant('STRIKE')
     expect(mods).toEqual(createWeaponMods())
   })
 
-  test('la onda expansiva empuja a la horda y no al boss', () => {
+  test('la base son cinco, y ninguna pide un arma', () => {
+    const base = SKILL_DEFS.filter((d) => !d.weapon)
+    expect(base.length).toBe(5)
+  })
+
+  test('la escarcha frena a la horda, y también a un heavy', () => {
+    // ES TODA SU RAZÓN DE SER. Reemplazó a la onda expansiva porque el
+    // empuje de aquella no movía a los heavy, y hoy hay siete: el Cazador y
+    // las seis élites. Frenar sí les funciona.
+    const lvl = SKILL_DEFS[SKILL.FROST].levels[0]
+
+    function avance(conEscarcha) {
+      const { s, enemies } = armar()
+      const i = enemies.spawn(ENEMY_TYPE.BRUTE, 0, 3) // dentro del radio
+      if (conEscarcha) {
+        s.grant('FROST')
+        s.update(0.016, 0) // publica la zona
+      }
+      const antes = enemies.posZ[i]
+      enemies.update(0.1, { x: 0, y: 0, z: 0 })
+      return antes - enemies.posZ[i]
+    }
+
+    const libre = avance(false)
+    const frenado = avance(true)
+
+    expect(libre).toBeGreaterThan(0)
+    expect(frenado).toBeLessThan(libre)
+    expect(frenado).toBeCloseTo(libre * lvl.slow, 0.001)
+  })
+
+  test('y no frena a quien está fuera del radio', () => {
     const { s, enemies } = armar()
-    const lvl = SKILL_DEFS[SKILL.PULSE].levels[0]
-    const drone = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
-    const boss = enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, 2)
+    const lvl = SKILL_DEFS[SKILL.FROST].levels[0]
+    const lejos = enemies.spawn(ENEMY_TYPE.NORMAL, 0, lvl.radius + 4)
 
-    s._pulse(lvl)
+    s.grant('FROST')
+    s.update(0.016, 0)
+    const antes = enemies.posZ[lejos]
+    enemies.update(0.1, { x: 0, y: 0, z: 0 })
 
-    expect(enemies.posZ[drone]).toBeCloseTo(1 + lvl.push, 1e-6)
-    expect(enemies.posZ[boss]).toBe(2)
+    const paso = antes - enemies.posZ[lejos]
+    expect(paso).toBeCloseTo(ENEMY_DEFS[ENEMY_TYPE.NORMAL].speed * 0.1, 0.001)
+  })
+
+  test('el señuelo se lleva a la horda, y también a un heavy', () => {
+    // No lo empuja: le cambia el blanco. Por eso entra donde no entra nada.
+    const { s, enemies } = armar()
+    const i = enemies.spawn(ENEMY_TYPE.BRUTE, 0, 4)
+
+    s.grant('LURE')
+    s.update(0.016, 0) // el cebo queda en (0,0), donde está el jugador
+    expect(enemies.lure).toBeTruthy()
+
+    // El jugador se va lejos: si persiguiera al jugador, se iría en +X.
+    s.player.position.x = 20
+    enemies.update(0.1, s.player.position)
+
+    expect(enemies.posZ[i]).toBeLessThan(4)
+    expect(Math.abs(enemies.posX[i])).toBeLessThan(0.01)
+  })
+
+  test('la guadaña corta adelante y no atrás', () => {
+    const { s, enemies } = armar()
+    const lvl = SKILL_DEFS[SKILL.SWEEP].levels[0]
+    s.player.facing = 0 // el cuerpo mira hacia -Z
+
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, -2) // adelante
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 2) // atrás
+
+    s._sweep(lvl)
+    enemies.resolveDamage()
+
+    // 40 de daño contra 30 de vida: el de adelante cae, el de atrás ni se
+    // entera.
+    expect(enemies.count).toBe(1)
+    expect(enemies.posZ[0]).toBe(2)
+  })
+
+  test('reset apaga la escarcha y levanta el señuelo', () => {
+    // Si quedaran publicados, la horda seguiría frenada o desviada en la
+    // partida siguiente, desde un punto que ya no existe.
+    const { s, enemies } = armar()
+    s.grant('FROST')
+    s.grant('LURE')
+    s.update(0.016, 0)
+    expect(enemies.slowZones.length).toBe(1)
+    expect(enemies.lure).toBeTruthy()
+
+    s.reset()
+    expect(enemies.slowZones.length).toBe(0)
+    expect(enemies.lure).toBe(null)
   })
 
 })

@@ -1,14 +1,16 @@
 import * as THREE from 'three'
-import { CONFIG } from '../config/GameConfig.js'
 import { SKILL_DEFS, SKILL_KIND, SKILL } from '../config/SkillDefs.js'
 import { createWeaponMods, resetWeaponMods } from '../combat/WeaponMods.js'
 
 const _dummy = new THREE.Object3D()
 
-/** Máximo de orbes que puede dibujar el InstancedMesh del escudo. */
-const MAX_ORBS = 8
-/** Cuánto dura el destello de la onda expansiva. */
-const PULSE_FLASH = 0.3
+/** Máximo de sierras que puede dibujar el InstancedMesh. */
+const MAX_SAWS = 8
+/** Vueltas por segundo que gira cada sierra sobre su propio eje. */
+const SAW_SPIN = 14
+/** Cuánto dura el destello del rayo y el del tajo. */
+const BOLT_FLASH = 0.22
+const SWEEP_FLASH = 0.26
 
 /**
  * SkillSystem — todas las habilidades, un solo resolutor.
@@ -19,6 +21,12 @@ const PULSE_FLASH = 0.3
  *
  * El daño se encola (queueDamage) igual que el de las armas: nadie mata
  * mientras se está recorriendo la horda.
+ *
+ * DOS HABILIDADES NO HACEN DAÑO Y NO ES UN OLVIDO. `Escarcha` frena y
+ * `Señuelo` desvía, y las dos lo consiguen publicando GEOMETRÍA que consume la
+ * persecución de la horda (ver EnemyManager.slowZones y .lure). Es el único
+ * camino que le llega a un `heavy`: a esos no se los empuja, pero sí se los
+ * puede frenar o convencer de perseguir otra cosa.
  *
  * HAY UN KIND QUE NO HACE NADA ACÁ. Las habilidades de personaje
  * (`kind: WEAPON`) no dibujan ni golpean: publican modificadores en el objeto
@@ -39,18 +47,35 @@ export class SkillSystem {
     /** [{ defIndex, level, timer }] — solo las que el jugador consiguió. */
     this.owned = []
 
+    /**
+     * La zona de escarcha y el señuelo se reservan UNA vez y se mutan en el
+     * lugar. Se publican por frame, así que crearlos cada vez sería basura a
+     * 60 Hz para dos objetos de cuatro campos.
+     */
+    this._zonaLenta = { x: 0, z: 0, radius: 0, slow: 1 }
+    this._cebo = { x: 0, z: 0, radius: 0 }
+    /** Segundos que le quedan al señuelo puesto. 0 = no hay. */
+    this.lureLeft = 0
+
     this._initMeshes(scene)
   }
 
   _initMeshes(scene) {
-    // Orbes del escudo
-    const orbGeo = new THREE.SphereGeometry(1, 10, 8)
-    const orbMat = new THREE.MeshBasicMaterial({ color: SKILL_DEFS[SKILL.ORBIT].color })
-    this.orbMesh = new THREE.InstancedMesh(orbGeo, orbMat, MAX_ORBS)
-    this.orbMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
-    this.orbMesh.frustumCulled = false
-    this.orbMesh.count = 0
-    scene.add(this.orbMesh)
+    /**
+     * Sierras: discos de diez lados, apoyados de plano.
+     *
+     * De plano y no de canto porque la cámara es cenital: un disco vertical se
+     * ve como una raya y no se entiende qué es. Diez lados en vez de treinta
+     * para que el contorno se lea dentado, que es lo que dice "sierra" sin
+     * modelar un solo diente.
+     */
+    const sawGeo = new THREE.CylinderGeometry(1, 1, 0.16, 10)
+    const sawMat = new THREE.MeshBasicMaterial({ color: SKILL_DEFS[SKILL.SAWS].color })
+    this.sawMesh = new THREE.InstancedMesh(sawGeo, sawMat, MAX_SAWS)
+    this.sawMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage)
+    this.sawMesh.frustumCulled = false
+    this.sawMesh.count = 0
+    scene.add(this.sawMesh)
 
     // Columna del rayo: un solo mesh reutilizado, se muestra un instante
     const boltGeo = new THREE.CylinderGeometry(1, 1, 9, 14, 1, true)
@@ -66,31 +91,96 @@ export class SkillSystem {
     scene.add(this.boltMesh)
     this.boltTimer = 0
 
-    // Anillo de la onda: crece y se apaga en PULSE_FLASH segundos
-    const pulseGeo = new THREE.RingGeometry(0.86, 1, 48)
-    const pulseMat = new THREE.MeshBasicMaterial({
-      color: SKILL_DEFS[SKILL.PULSE].color,
-      transparent: true,
-      opacity: 0,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-    })
-    this.pulseMesh = new THREE.Mesh(pulseGeo, pulseMat)
-    this.pulseMesh.rotation.x = -Math.PI / 2
-    this.pulseMesh.position.y = 0.07
-    this.pulseMesh.visible = false
-    scene.add(this.pulseMesh)
-    this.pulseTimer = 0
-    this.pulseRadius = 0
+    // ── Escarcha: un disco tenue con el borde marcado ──────────────────────
+    // El borde importa más que el relleno: lo que el jugador necesita saber es
+    // exactamente dónde deja de frenar, y un degradado no dice eso.
+    const frostColor = SKILL_DEFS[SKILL.FROST].color
+    this.frostGroup = new THREE.Group()
+    this.frostDisc = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 48),
+      new THREE.MeshBasicMaterial({
+        color: frostColor,
+        transparent: true,
+        opacity: 0.13,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.frostDisc.rotation.x = -Math.PI / 2
+    this.frostDisc.position.y = 0.04
+    this.frostRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.93, 1, 48),
+      new THREE.MeshBasicMaterial({
+        color: frostColor,
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.frostRing.rotation.x = -Math.PI / 2
+    this.frostRing.position.y = 0.05
+    this.frostGroup.add(this.frostDisc, this.frostRing)
+    this.frostGroup.visible = false
+    scene.add(this.frostGroup)
+
+    // ── Señuelo: el cebo y el círculo de a quiénes convence ────────────────
+    const lureColor = SKILL_DEFS[SKILL.LURE].color
+    this.lureGroup = new THREE.Group()
+    this.lureCore = new THREE.Mesh(
+      new THREE.OctahedronGeometry(0.42),
+      new THREE.MeshBasicMaterial({ color: lureColor }),
+    )
+    this.lureCore.position.y = 0.7
+    this.lureRing = new THREE.Mesh(
+      new THREE.RingGeometry(0.94, 1, 44),
+      new THREE.MeshBasicMaterial({
+        color: lureColor,
+        transparent: true,
+        opacity: 0.45,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.lureRing.rotation.x = -Math.PI / 2
+    this.lureRing.position.y = 0.05
+    this.lureGroup.add(this.lureCore, this.lureRing)
+    this.lureGroup.visible = false
+    scene.add(this.lureGroup)
+
+    // ── Guadaña: una porción de disco que apunta a donde caminás ───────────
+    // La geometría se rehace solo cuando cambia el ángulo del cono, o sea al
+    // subir de nivel: dibujar un cono más ancho del que hace daño sería mentir.
+    this.sweepGroup = new THREE.Group()
+    this.sweepMesh = new THREE.Mesh(
+      new THREE.CircleGeometry(1, 32, -0.9, 1.8),
+      new THREE.MeshBasicMaterial({
+        color: SKILL_DEFS[SKILL.SWEEP].color,
+        transparent: true,
+        opacity: 0,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+      }),
+    )
+    this.sweepMesh.rotation.x = -Math.PI / 2
+    this.sweepMesh.position.y = 0.06
+    this.sweepGroup.add(this.sweepMesh)
+    this.sweepGroup.visible = false
+    scene.add(this.sweepGroup)
+    this.sweepTimer = 0
+    this._sweepArc = 0
   }
 
   reset() {
     this.owned.length = 0
-    this.orbMesh.count = 0
+    this.sawMesh.count = 0
     this.boltMesh.visible = false
     this.boltTimer = 0
-    this.pulseMesh.visible = false
-    this.pulseTimer = 0
+    this.frostGroup.visible = false
+    this.sweepGroup.visible = false
+    this.sweepTimer = 0
+    this._quitarSenuelo()
+    this.enemies.slowZones.length = 0
     this._recomputeMods()
   }
 
@@ -147,7 +237,13 @@ export class SkillSystem {
   }
 
   update(delta, elapsed) {
-    let orbCount = 0
+    // Las zonas se republican ENTERAS cada frame. Si en vez de eso se fueran
+    // agregando, una habilidad que dejaste de tener seguiría frenando a la
+    // horda para siempre desde el último lugar donde estuviste.
+    this.enemies.slowZones.length = 0
+
+    let sawCount = 0
+    let conEscarcha = false
 
     for (let s = 0; s < this.owned.length; s++) {
       const entry = this.owned[s]
@@ -155,35 +251,47 @@ export class SkillSystem {
       const lvl = def.levels[entry.level - 1]
 
       if (def.kind === SKILL_KIND.ORBIT) {
-        orbCount = this._updateOrbit(delta, elapsed, lvl)
+        sawCount = this._updateSaws(delta, elapsed, lvl)
+      } else if (def.kind === SKILL_KIND.FROST) {
+        // Continua: no tiene reloj, está siempre puesta.
+        this._frost(delta, elapsed, lvl)
+        conEscarcha = true
       } else if (def.kind === SKILL_KIND.STRIKE) {
         entry.timer -= delta
         if (entry.timer <= 0) {
           entry.timer = lvl.interval
           this._strike(lvl)
         }
-      } else if (def.kind === SKILL_KIND.PULSE) {
+      } else if (def.kind === SKILL_KIND.LURE) {
         entry.timer -= delta
         if (entry.timer <= 0) {
           entry.timer = lvl.interval
-          this._pulse(lvl)
+          this._lure(lvl)
+        }
+      } else if (def.kind === SKILL_KIND.SWEEP) {
+        entry.timer -= delta
+        if (entry.timer <= 0) {
+          entry.timer = lvl.interval
+          this._sweep(lvl)
         }
       }
       // SKILL_KIND.WEAPON no hace nada por frame: ya está en this.mods.
     }
 
-    this.orbMesh.count = orbCount
-    if (orbCount > 0) this.orbMesh.instanceMatrix.needsUpdate = true
+    this.sawMesh.count = sawCount
+    if (sawCount > 0) this.sawMesh.instanceMatrix.needsUpdate = true
+    this.frostGroup.visible = conEscarcha
 
     this._updateBolt(delta)
-    this._updatePulse(delta)
+    this._updateLure(delta, elapsed)
+    this._updateSweep(delta)
   }
 
   /**
-   * Orbes girando. El daño es por segundo de contacto, no por golpe: con orbes
-   * moviéndose rápido, contar golpes discretos depende del framerate.
+   * Sierras girando. El daño es por segundo de contacto, no por golpe: con
+   * cuerpos moviéndose rápido, contar golpes discretos depende del framerate.
    */
-  _updateOrbit(delta, elapsed, lvl) {
+  _updateSaws(delta, elapsed, lvl) {
     const e = this.enemies
     const px = this.player.position.x
     const pz = this.player.position.z
@@ -196,10 +304,13 @@ export class SkillSystem {
       const ox = px + Math.cos(a) * lvl.radius
       const oz = pz + Math.sin(a) * lvl.radius
 
-      _dummy.position.set(ox, 0.9, oz)
+      // Además de orbitar, cada una gira sobre su eje: es lo que la hace leer
+      // como una sierra y no como una moneda flotando.
+      _dummy.position.set(ox, 0.55, oz)
+      _dummy.rotation.set(0, elapsed * SAW_SPIN + a, 0)
       _dummy.scale.setScalar(lvl.size)
       _dummy.updateMatrix()
-      this.orbMesh.setMatrixAt(o, _dummy.matrix)
+      this.sawMesh.setMatrixAt(o, _dummy.matrix)
 
       for (let i = 0; i < e.count; i++) {
         const dx = e.posX[i] - ox
@@ -210,6 +321,44 @@ export class SkillSystem {
     }
 
     return lvl.count
+  }
+
+  /**
+   * Escarcha: el campo que frena.
+   *
+   * No golpea ni empuja — publica una zona y desgasta. Lo que la hace valer es
+   * que frenar es lo ÚNICO que le funciona a un `heavy`, y hoy hay siete: el
+   * Cazador y las seis élites. Por eso su daño por segundo es bajo: lo que
+   * comprás es el control.
+   */
+  _frost(delta, elapsed, lvl) {
+    const e = this.enemies
+    const px = this.player.position.x
+    const pz = this.player.position.z
+
+    this._zonaLenta.x = px
+    this._zonaLenta.z = pz
+    this._zonaLenta.radius = lvl.radius
+    this._zonaLenta.slow = lvl.slow
+    e.slowZones.push(this._zonaLenta)
+
+    const rSq = lvl.radius * lvl.radius
+    const dmg = lvl.dps * delta * this.progression.stats.damageMult
+
+    for (let i = 0; i < e.count; i++) {
+      const dx = e.posX[i] - px
+      const dz = e.posZ[i] - pz
+      if (dx * dx + dz * dz <= rSq) e.queueDamage(i, dmg)
+    }
+
+    this.frostGroup.position.set(px, 0, pz)
+    // El alto NO se escala: si se escalara, el disco despegaría del piso.
+    this.frostGroup.scale.set(lvl.radius, 1, lvl.radius)
+
+    // Latido lento. Un disco quieto se lee como parte del piso.
+    const latido = 0.85 + Math.sin(elapsed * 2.2) * 0.15
+    this.frostRing.material.opacity = 0.5 * latido
+    this.frostDisc.material.opacity = 0.13 * latido
   }
 
   _strike(lvl) {
@@ -247,7 +396,7 @@ export class SkillSystem {
     this.boltMesh.position.set(tx, 4.5, tz)
     this.boltMesh.scale.set(lvl.radius, 1, lvl.radius)
     this.boltMesh.visible = true
-    this.boltTimer = 0.22
+    this.boltTimer = BOLT_FLASH
   }
 
   _updateBolt(delta) {
@@ -259,25 +408,81 @@ export class SkillSystem {
       return
     }
 
-    this.boltMesh.material.opacity = this.boltTimer / 0.22
+    this.boltMesh.material.opacity = this.boltTimer / BOLT_FLASH
   }
 
   /**
-   * Onda expansiva: daña y EMPUJA.
+   * Señuelo: el cebo queda DONDE ESTABAS PARADO.
    *
-   * El empuje es lo que la distingue de cualquier otra área de daño, y por eso
-   * se escribe directo sobre la posición en vez de encolarse: es lo mismo que
-   * hace `_resolvePlayer()` cuando te sacás a alguien de encima. A los `heavy`
-   * no los mueve — si el boss retrocediera con cada onda, la pelea se ganaría
-   * sola quedándote quieto.
+   * Es la única herramienta de escape del juego y no rompe la regla de que lo
+   * único que controlás es dónde estás parado: no te mueve a vos, mueve a
+   * ellos. Por eso entra donde no entra nada — a un `heavy` no se lo empuja,
+   * pero sí persigue otra cosa.
+   *
+   * No hace daño a propósito. Si además matara sería una bomba con una ventaja
+   * escondida, en vez de una decisión de posición.
    */
-  _pulse(lvl) {
+  _lure(lvl) {
+    this._cebo.x = this.player.position.x
+    this._cebo.z = this.player.position.z
+    this._cebo.radius = lvl.radius
+
+    this.enemies.lure = this._cebo
+    this.lureLeft = lvl.duration
+
+    this.lureGroup.position.set(this._cebo.x, 0, this._cebo.z)
+    // El anillo marca EXACTAMENTE a quiénes convence: sin él, el jugador no
+    // tiene forma de saber si le va a servir antes de tirarlo.
+    this.lureGroup.scale.set(lvl.radius, 1, lvl.radius)
+    this.lureGroup.visible = true
+  }
+
+  _updateLure(delta, elapsed) {
+    if (this.lureLeft <= 0) return
+
+    this.lureLeft -= delta
+    if (this.lureLeft <= 0) {
+      this._quitarSenuelo()
+      return
+    }
+
+    // El cebo gira y late; el anillo se apaga a medida que se acaba, que es la
+    // cuenta regresiva sin escribir un número.
+    this.lureCore.rotation.y = elapsed * 3
+    this.lureCore.rotation.x = elapsed * 2
+    // El núcleo no se estira con el anillo: el grupo está escalado por el radio
+    // del señuelo, así que se lo compensa.
+    const inv = 1 / this.lureGroup.scale.x
+    this.lureCore.scale.set(inv, 1, inv)
+    this.lureRing.material.opacity = 0.2 + 0.35 * Math.min(1, this.lureLeft)
+  }
+
+  _quitarSenuelo() {
+    this.lureLeft = 0
+    this.enemies.lure = null
+    this.lureGroup.visible = false
+  }
+
+  /**
+   * Guadaña: un tajo en cono hacia donde CAMINA el cuerpo.
+   *
+   * Hacia donde camina y no hacia donde mira, y la diferencia importa desde que
+   * el torso apunta al blanco del arma por su cuenta (ver Player): si usara el
+   * torso sería un segundo cañón, y lo que tiene que premiar es meterse.
+   */
+  _sweep(lvl) {
     const e = this.enemies
     const px = this.player.position.x
     const pz = this.player.position.z
+
+    // El muñeco mira hacia su -Z local, así que su frente en el mundo es esto.
+    const fx = -Math.sin(this.player.facing)
+    const fz = -Math.cos(this.player.facing)
+
     const rSq = lvl.radius * lvl.radius
+    // arc es el cono COMPLETO en grados; acá hace falta el coseno del medio.
+    const cono = Math.cos((lvl.arc * Math.PI) / 360)
     const dmg = lvl.damage * this.progression.stats.damageMult
-    const edge = CONFIG.WORLD.ARENA_SIZE / 2
 
     for (let i = 0; i < e.count; i++) {
       const dx = e.posX[i] - px
@@ -285,44 +490,47 @@ export class SkillSystem {
       const dSq = dx * dx + dz * dz
       if (dSq > rSq) continue
 
+      // Encima tuyo no hay dirección que medir: entra siempre.
+      if (dSq < 0.0001) {
+        e.queueDamage(i, dmg)
+        continue
+      }
+
+      const inv = 1 / Math.sqrt(dSq)
+      if (dx * inv * fx + dz * inv * fz < cono) continue
       e.queueDamage(i, dmg)
-      if (e.heavy[i]) continue
-
-      // Justo encima no hay dirección que calcular: se empuja hacia un lado
-      // fijo en vez de dividir por cero.
-      const d = Math.sqrt(dSq)
-      const nx = d > 0.0001 ? dx / d : 1
-      const nz = d > 0.0001 ? dz / d : 0
-
-      const lim = edge - e.radius[i]
-      let x = e.posX[i] + nx * lvl.push
-      let z = e.posZ[i] + nz * lvl.push
-      if (x > lim) x = lim
-      else if (x < -lim) x = -lim
-      if (z > lim) z = lim
-      else if (z < -lim) z = -lim
-      e.posX[i] = x
-      e.posZ[i] = z
     }
 
-    this.pulseMesh.position.set(px, 0.07, pz)
-    this.pulseMesh.visible = true
-    this.pulseTimer = PULSE_FLASH
-    this.pulseRadius = lvl.radius
+    this._ajustarCono(lvl.arc)
+    this.sweepGroup.position.set(px, 0, pz)
+    this.sweepGroup.scale.set(lvl.radius, 1, lvl.radius)
+    // El +90° sale de la geometría: la porción arranca centrada en su +X local,
+    // y el frente del muñeco está a un cuarto de vuelta de ahí.
+    this.sweepGroup.rotation.y = this.player.facing + Math.PI / 2
+    this.sweepGroup.visible = true
+    this.sweepTimer = SWEEP_FLASH
   }
 
-  /** El anillo crece hasta el radio real de la onda mientras se apaga. */
-  _updatePulse(delta) {
-    if (!this.pulseMesh.visible) return
+  /** Rehace la porción de disco si cambió el ángulo. Pasa al subir de nivel. */
+  _ajustarCono(arc) {
+    if (this._sweepArc === arc) return
+    this._sweepArc = arc
 
-    this.pulseTimer -= delta
-    if (this.pulseTimer <= 0) {
-      this.pulseMesh.visible = false
+    const rad = (arc * Math.PI) / 180
+    this.sweepMesh.geometry.dispose()
+    this.sweepMesh.geometry = new THREE.CircleGeometry(1, 32, -rad / 2, rad)
+  }
+
+  _updateSweep(delta) {
+    if (!this.sweepGroup.visible) return
+
+    this.sweepTimer -= delta
+    if (this.sweepTimer <= 0) {
+      this.sweepGroup.visible = false
       return
     }
 
-    const t = 1 - this.pulseTimer / PULSE_FLASH
-    this.pulseMesh.scale.setScalar(this.pulseRadius * (0.25 + 0.75 * t))
-    this.pulseMesh.material.opacity = 1 - t
+    const t = this.sweepTimer / SWEEP_FLASH
+    this.sweepMesh.material.opacity = 0.55 * t
   }
 }

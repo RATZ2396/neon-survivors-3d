@@ -104,8 +104,10 @@ export class SkillLab {
   }
 
   _kindLabel(kind) {
-    if (kind === SKILL_KIND.ORBIT) return 'orbita · daño por contacto'
-    if (kind === SKILL_KIND.PULSE) return 'onda · daña y empuja'
+    if (kind === SKILL_KIND.ORBIT) return 'sierras · daño por contacto'
+    if (kind === SKILL_KIND.FROST) return 'campo · frena y desgasta'
+    if (kind === SKILL_KIND.LURE) return 'señuelo · desvía a la horda'
+    if (kind === SKILL_KIND.SWEEP) return 'tajo en cono · hacia donde caminás'
     if (kind === SKILL_KIND.WEAPON) return 'cambia cómo dispara tu arma'
     return 'golpe puntual · cada N segundos'
   }
@@ -177,10 +179,19 @@ export class SkillLab {
   /** Traduce los números crudos de la tabla a algo comparable entre habilidades. */
   _describe(def, l) {
     if (def.kind === SKILL_KIND.ORBIT) {
-      return `${l.count} orbes · ${l.dps} dps c/u · radio ${l.radius}`
+      return `${l.count} sierras · ${l.dps} dps c/u · radio ${l.radius}`
     }
-    if (def.kind === SKILL_KIND.PULSE) {
-      return `${l.damage} cada ${l.interval}s · radio ${l.radius} · empuje ${l.push}`
+    if (def.kind === SKILL_KIND.FROST) {
+      return `radio ${l.radius} · velocidad ×${l.slow} · ${l.dps} dps`
+    }
+    if (def.kind === SKILL_KIND.LURE) {
+      return `cada ${l.interval}s · dura ${l.duration}s · radio ${l.radius}`
+    }
+    if (def.kind === SKILL_KIND.SWEEP) {
+      return (
+        `${l.damage} cada ${l.interval}s · radio ${l.radius} · cono ${l.arc}° ` +
+        `(${Math.round(l.damage / l.interval)} dps)`
+      )
     }
     if (def.kind === SKILL_KIND.WEAPON) {
       // Los modificadores no tienen una unidad común: se listan crudos, que

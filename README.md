@@ -99,9 +99,11 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 
 | Habilidad | Qué es | nv 1 | nv 5 |
 |---|---|---|---|
-| **Escudo orbital** | orbes girando, daño por contacto | 2 orbes · 20 dps c/u · radio 2.0 | 5 orbes · 58 dps c/u · radio 2.6 |
+| **Sierras** | discos girando, daño por contacto | 2 sierras · 20 dps c/u · radio 2.0 | 5 sierras · 58 dps c/u · radio 2.6 |
 | **Rayo** | golpe puntual sobre el más cercano | 45 cada 3.0s · radio 2.6 (15 dps) | 140 cada 1.8s · radio 3.5 (78 dps) |
-| **Onda expansiva** | daña y **empuja** lo que te rodea | 30 cada 3.2s · radio 4.0 · empuje 1.6 | 105 cada 2.0s · radio 6.2 · empuje 3.0 |
+| **Escarcha** | campo pegado a vos: **frena** y desgasta | radio 3.6 · velocidad ×0.75 · 8 dps | radio 5.4 · velocidad ×0.45 · 26 dps |
+| **Señuelo** | un cebo que la horda persigue en vez de a vos | cada 9s · dura 2.5s · radio 7 | cada 5.5s · dura 4.5s · radio 11 |
+| **Guadaña** | tajo en cono hacia donde **caminás** | 40 cada 2.6s · radio 4.5 · cono 100° | 125 cada 1.8s · radio 6.5 · cono 120° |
 
 **Propias del arma — solo con ella**
 
@@ -115,7 +117,19 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 | Metralleta | **Doble línea** | balas paralelas al costado, no abanico |
 | Metralleta | **Bala explosiva** | cada 6-12 balas, una estalla al impactar |
 
-El **empuje** de la onda expansiva y de Impacto no mueve a los `heavy` (las élites y el Cazador), a propósito: si un jefe retrocediera con cada golpe la pelea se ganaría quedándose quieto.
+El **empuje** de Impacto no mueve a los `heavy` (las élites y el Cazador), a propósito: si un jefe retrocediera con cada golpe la pelea se ganaría quedándose quieto.
+
+Eso también fue lo que se llevó puesta a **Onda expansiva**, que era la tercera
+base: su rasgo distintivo era el empuje, y el empuje no le hacía nada a ninguna
+de las siete cosas que te matan. La reemplazó **Escarcha**, que frena en vez de
+empujar — y frenar sí les funciona. Junto con **Señuelo**, son las dos únicas
+cartas del juego que le hacen algo a un minijefe además de daño.
+
+**Ninguna de las dos toca al enemigo.** Publican geometría —un punto y un radio—
+que consume la persecución de la horda (`EnemyManager.slowZones` y `.lure`), y
+esa es la decisión que las hace correctas: el swap-remove mueve los índices en
+cuanto muere cualquiera, así que una marca por enemigo terminaría frenando o
+desviando al que ocupó el hueco. Una zona no puede equivocarse de enemigo.
 
 La pistola y la escopeta tenían una tercera —**Cañón trasero** y **Abanico trasero**— que repetía la andanada 180° hacia atrás. Se borraron: ver el escuadrón, abajo.
 

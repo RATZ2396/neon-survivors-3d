@@ -4,9 +4,11 @@
  * Mismo criterio que WeaponDefs: no hay una clase por skill. Hay `kind`s, y
  * cada uno lo resuelve un método de SkillSystem:
  *
- *   ORBIT  — orbes girando alrededor del jugador (el escudo orbital del GDD v1)
+ *   ORBIT  — cuerpos girando alrededor del jugador que dañan al tocar
  *   STRIKE — un golpe puntual cada N segundos sobre un enemigo (el rayo del v1)
- *   PULSE  — una onda que sale del jugador: daña y EMPUJA
+ *   FROST  — un campo pegado al jugador que FRENA y desgasta
+ *   LURE   — un señuelo que la horda persigue en vez de a vos
+ *   SWEEP  — un barrido en cono hacia donde te estás moviendo
  *   WEAPON — no hace daño por su cuenta: cambia cómo dispara TU arma
  *
  * DOS FAMILIAS, y la diferencia es el campo `weapon`:
@@ -20,11 +22,17 @@
  * modificadores en el objeto de WeaponMods.js, que leen WeaponSystem y
  * ProjectileManager. Misma regla de siempre — NUNCA se muta WEAPON_DEFS.
  *
- * DOS QUE SE SACARON, las dos por decisión de diseño y no porque fallaran:
- * AURA ("Campo de fuerza", un círculo pegado al jugador) y DRONE
- * (acompañantes que disparaban solos). El dron además chocaba con la regla
- * que ordena todo esto: un personaje, un arma. Un acompañante que dispara
- * por su cuenta es una segunda arma con otro nombre.
+ * TRES QUE SE SACARON, las tres por decisión de diseño y no porque fallaran:
+ * AURA ("Campo de fuerza", un círculo pegado al jugador), DRONE
+ * (acompañantes que disparaban solos) y PULSE ("Onda expansiva", que dañaba
+ * y empujaba). El dron chocaba con la regla que ordena todo esto: un
+ * personaje, un arma — un acompañante que dispara por su cuenta es una
+ * segunda arma con otro nombre.
+ *
+ * La onda se fue por una razón medida: su empuje NO mueve a los `heavy`, y
+ * hoy hay siete —el Cazador y las seis élites—, o sea que su rasgo distintivo
+ * no funcionaba contra ninguna de las cosas que te matan. La reemplaza
+ * `Escarcha`, que frena en vez de empujar: frenar sí les funciona.
  *
  * `levels` es explícito nivel por nivel, no una fórmula base+incremento. Es más
  * texto pero se lee de un vistazo qué pasa en cada nivel, y balancear no obliga
@@ -34,7 +42,9 @@
 export const SKILL_KIND = {
   ORBIT: 'ORBIT',
   STRIKE: 'STRIKE',
-  PULSE: 'PULSE',
+  FROST: 'FROST',
+  LURE: 'LURE',
+  SWEEP: 'SWEEP',
   WEAPON: 'WEAPON',
 }
 
@@ -43,13 +53,19 @@ export const SKILL_DEFS = [
   // BASE — las ve cualquier personaje
   // ═══════════════════════════════════════════════════════════════════════
   {
-    key: 'ORBIT',
-    name: 'Escudo orbital',
-    desc: 'Orbes que giran a tu alrededor y dañan lo que tocan.',
+    key: 'SAWS',
+    name: 'Sierras',
+    desc: 'Sierras girando a tu alrededor. Cortan lo que se acerque.',
     kind: SKILL_KIND.ORBIT,
     color: 0x39d0ff,
-    // count: orbes · dps: daño por segundo de contacto · radius: órbita
-    // spin: vueltas por segundo · size: radio del orbe
+    /**
+     * Era `Escudo orbital` y eran orbes. Los números no cambiaron: cambió qué
+     * son. Un escudo dice "esto me protege" y lo que hace es cortar al que se
+     * acerca — la sierra dice la verdad, y de paso explica por qué te conviene
+     * dejar que se acerquen.
+     */
+    // count: sierras · dps: daño por segundo de contacto · radius: órbita
+    // spin: vueltas por segundo · size: radio de la sierra
     levels: [
       { count: 2, dps: 20, radius: 2.0, spin: 0.35, size: 0.3 },
       { count: 3, dps: 26, radius: 2.1, spin: 0.38, size: 0.3 },
@@ -73,23 +89,79 @@ export const SKILL_DEFS = [
     ],
   },
   {
-    key: 'PULSE',
-    name: 'Onda expansiva',
-    desc: 'Cada pocos segundos, una onda que daña y empuja todo lo que te rodea.',
-    kind: SKILL_KIND.PULSE,
-    color: 0xff6bd6,
+    key: 'FROST',
+    name: 'Escarcha',
+    desc: 'Un campo helado te sigue: lo que entra se arrastra, y se va gastando.',
+    kind: SKILL_KIND.FROST,
+    color: 0xa5f3fc,
     /**
-     * `push` son unidades de mundo que retrocede cada enemigo alcanzado. Es la
-     * razón de ser de esta habilidad: es la única respuesta a "me rodearon"
-     * que no exige apretar nada, y descartar la acción manual dejó ese hueco
-     * abierto. A los `heavy` (el boss) no los mueve, a propósito.
+     * REEMPLAZA A `Onda expansiva`, y la razón es una sola: el empuje no mueve
+     * a los `heavy`. Hoy hay siete —el Cazador y las seis élites—, así que el
+     * rasgo que distinguía a la onda no servía contra nada de lo que te mata.
+     *
+     * Frenar sí les funciona. Esta es hoy la ÚNICA carta del juego que le hace
+     * algo a un minijefe además de daño, y por eso su daño por segundo es bajo:
+     * lo que comprás es el control, no la matanza.
+     *
+     * `slow` es un multiplicador de velocidad, no un porcentaje restado: 0.75
+     * es "se mueve a tres cuartos". Se publica como ZONA (ver
+     * EnemyManager.slowZones) y no como marca por enemigo, porque el
+     * swap-remove mueve los índices y una marca terminaría frenando al que
+     * ocupó el hueco.
      */
     levels: [
-      { damage: 30, radius: 4.0, interval: 3.2, push: 1.6 },
-      { damage: 42, radius: 4.5, interval: 2.9, push: 1.9 },
-      { damage: 58, radius: 5.0, interval: 2.6, push: 2.2 },
-      { damage: 78, radius: 5.6, interval: 2.3, push: 2.6 },
-      { damage: 105, radius: 6.2, interval: 2.0, push: 3.0 },
+      { radius: 3.6, slow: 0.75, dps: 8 },
+      { radius: 4.0, slow: 0.68, dps: 11 },
+      { radius: 4.4, slow: 0.6, dps: 15 },
+      { radius: 4.9, slow: 0.52, dps: 20 },
+      { radius: 5.4, slow: 0.45, dps: 26 },
+    ],
+  },
+  {
+    key: 'LURE',
+    name: 'Señuelo',
+    desc: 'Dejás un cebo donde estás parado. La horda corre hacia él, no hacia vos.',
+    kind: SKILL_KIND.LURE,
+    color: 0xff6bd6,
+    /**
+     * La única herramienta de escape del juego, y no rompe la regla de que lo
+     * único que controlás es dónde estás parado: no te mueve a vos, mueve a
+     * ellos. Por eso también entra donde no entra nada — un `heavy` no se
+     * empuja, pero sí persigue otra cosa.
+     *
+     * No hace daño, y es a propósito: si además matara, sería una bomba con
+     * una ventaja escondida en vez de una decisión de posición.
+     *
+     * `radius` es a quién convence, no cuánto dura el cebo en el piso.
+     */
+    levels: [
+      { interval: 9.0, duration: 2.5, radius: 7 },
+      { interval: 8.0, duration: 3.0, radius: 8 },
+      { interval: 7.0, duration: 3.5, radius: 9 },
+      { interval: 6.2, duration: 4.0, radius: 10 },
+      { interval: 5.5, duration: 4.5, radius: 11 },
+    ],
+  },
+  {
+    key: 'SWEEP',
+    name: 'Guadaña',
+    desc: 'Un tajo cada pocos segundos, hacia donde estás caminando.',
+    kind: SKILL_KIND.SWEEP,
+    color: 0xd4ff4d,
+    /**
+     * Es el pulso, pero direccional: en vez de premiarte por estar rodeado, te
+     * premia por meterte. Apunta hacia donde CAMINA el cuerpo, no hacia donde
+     * mira el torso — el torso sigue al blanco del arma (ver Player), así que
+     * usar eso la volvería un segundo cañón en vez de un movimiento.
+     *
+     * `arc` está en grados y es el cono completo, no el semiángulo.
+     */
+    levels: [
+      { damage: 40, radius: 4.5, arc: 100, interval: 2.6 },
+      { damage: 55, radius: 5.0, arc: 105, interval: 2.4 },
+      { damage: 72, radius: 5.5, arc: 110, interval: 2.2 },
+      { damage: 95, radius: 6.0, arc: 115, interval: 2.0 },
+      { damage: 125, radius: 6.5, arc: 120, interval: 1.8 },
     ],
   },
 

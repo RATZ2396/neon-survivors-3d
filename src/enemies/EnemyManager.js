@@ -95,6 +95,19 @@ export class EnemyManager {
      */
     this.dmgToElite = 0
 
+    /**
+     * ZONAS QUE FRENAN a la horda, y el SEÑUELO que la desvía. Las publica
+     * SkillSystem (Escarcha y Señuelo); las consume _chase.
+     *
+     * Se guardan como GEOMETRÍA —un punto y un radio— y no como una marca por
+     * enemigo, y esa es la decisión que importa: el swap-remove mueve los
+     * índices en cuanto muere cualquiera, así que un array paralelo terminaría
+     * frenando o desviando al que ocupó el hueco. Una zona no puede
+     * equivocarse de enemigo, porque pregunta por posición.
+     */
+    this.slowZones = []
+    this.lure = null
+
     this.grid = new SpatialGrid(CONFIG.WORLD.ARENA_SIZE, CONFIG.ENEMIES.GRID_CELL, max)
 
     this._initMesh(scene)
@@ -349,6 +362,8 @@ export class EnemyManager {
     this.dmgToPriority = 0
     this.dmgToRest = 0
     this.dmgToElite = 0
+    this.slowZones.length = 0
+    this.lure = null
   }
 
   /**
@@ -482,23 +497,54 @@ export class EnemyManager {
     }
   }
 
-  /** Persecución directa. Un sqrt por enemigo: es el mínimo para normalizar. */
+  /**
+   * Persecución directa. Un sqrt por enemigo: es el mínimo para normalizar.
+   *
+   * Dos cosas pueden torcerla, y las dos llegan como geometría publicada desde
+   * afuera (ver slowZones y lure): un señuelo cambia A QUIÉN persigue, y un
+   * campo de escarcha cambia A QUÉ VELOCIDAD. Frenar es lo único que le
+   * funciona a un `heavy`, que por definición no se deja empujar.
+   */
   _chase(delta, playerPos, n) {
     const px = playerPos.x
     const pz = playerPos.z
     const blockedSpeed = CONFIG.ENEMIES.BLOCKED_SPEED
+    const lure = this.lure
+    const zonas = this.slowZones
 
     for (let i = 0; i < n; i++) {
-      const dx = px - this.posX[i]
-      const dz = pz - this.posZ[i]
+      // A quién persigue: al jugador, salvo que un señuelo lo tenga adentro.
+      let tx = px
+      let tz = pz
+      if (lure !== null) {
+        const lx = lure.x - this.posX[i]
+        const lz = lure.z - this.posZ[i]
+        if (lx * lx + lz * lz <= lure.radius * lure.radius) {
+          tx = lure.x
+          tz = lure.z
+        }
+      }
+
+      const dx = tx - this.posX[i]
+      const dz = tz - this.posZ[i]
       const distSq = dx * dx + dz * dz
 
-      // Ya está encima del jugador: normalizar acá sería dividir por ~0.
+      // Ya está encima del blanco: normalizar acá sería dividir por ~0.
       if (distSq < 0.0001) continue
+
+      // Cuánto lo frenan. Si cae en varias zonas manda la más fuerte, no se
+      // multiplican: dos escarchas superpuestas no pueden congelar el juego.
+      let slow = 1
+      for (let z = 0; z < zonas.length; z++) {
+        const zn = zonas[z]
+        const zx = zn.x - this.posX[i]
+        const zz = zn.z - this.posZ[i]
+        if (zn.slow < slow && zx * zx + zz * zz <= zn.radius * zn.radius) slow = zn.slow
+      }
 
       // Bloqueado no significa congelado: sigue presionando muy despacio, para
       // que cuando el jugador se corra la horda arranque sin latencia.
-      const scale = this._blocked[i] ? blockedSpeed : 1
+      const scale = (this._blocked[i] ? blockedSpeed : 1) * slow
 
       const inv = 1 / Math.sqrt(distSq)
       const step = this.speed[i] * scale * delta

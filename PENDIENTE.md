@@ -15,10 +15,23 @@ recolección y los enemigos — nunca de sumar armas.
 **~~Sacar `Campo de fuerza`~~ — hecho.** Ya no está en `SkillDefs.js`, y con
 ella se fue el `kind` `AURA` entero.
 
-**~~Las habilidades base que faltaban~~ — hechas.** Se agregaron `Onda
-expansiva` (daña y empuja) y `Dron`, y el dron se sacó enseguida: chocaba
-con la regla de arriba, un acompañante que dispara solo es una segunda arma
-con otro nombre. La base quedó en 3: escudo orbital, rayo y onda.
+**~~Las habilidades base~~ — rehechas el 2026-09-09.** La base pasó de 3 a 5:
+
+| | |
+|---|---|
+| **Sierras** | era `Escudo orbital`. Mismos números, otra cosa: un escudo dice "esto me protege" y lo que hace es cortar al que se acerca |
+| **Rayo** | sin cambios |
+| **Escarcha** | reemplaza a `Onda expansiva`. Frena en vez de empujar |
+| **Señuelo** | nueva. Un cebo que la horda persigue en vez de a vos |
+| **Guadaña** | nueva. Tajo en cono hacia donde caminás |
+
+La onda se fue por una razón medida: su empuje **no mueve a los `heavy`**, y hoy
+hay siete —el Cazador y las seis élites—, así que su rasgo distintivo no servía
+contra nada de lo que te mata. Escarcha y Señuelo son ahora las dos únicas
+cartas que le hacen algo a un minijefe además de daño.
+
+Antes de esto también se probó `Dron` y se sacó enseguida: chocaba con la regla
+de arriba — un acompañante que dispara solo es una segunda arma con otro nombre.
 
 **~~Las 3 propias de cada personaje~~ — hechas.** Se decidieron el 2026-09-04
 y son modificadores del arma, no armas nuevas:
@@ -40,7 +53,7 @@ La cuenta quedó en **5 o 6 al alcance por partida** según el personaje (3 de b
 equipadas: nunca las tenés todas.
 
 **Lo que queda del punto 1:** unificar arma y habilidad en un solo sistema.
-`Rayo`, `Escudo orbital` y compañía ya tienen daño, enfriamiento y alcance —
+`Rayo`, `Sierras` y compañía ya tienen daño, enfriamiento y alcance —
 son armas. Esa división hoy solo agrega código. Ojo que las de `kind: WEAPON`
 ya cruzaron media frontera: viven en `SkillDefs` pero las aplica el arma.
 
