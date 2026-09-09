@@ -60,14 +60,21 @@ export const CONFIG = {
      * REGENERACIÓN. Segundos sin recibir daño antes de empezar a curarse, y a
      * qué ritmo.
      *
-     * La demora es lo que hace que esto no sea "más vida": 6 segundos es mucho
-     * más de lo que dura estar rodeado, así que no te salva de una mala pelea.
-     * Lo que arregla es la otra cosa — que un raspón del minuto 2 te condene el
-     * resto de la partida.
+     * La demora es lo que hace que esto no sea "más vida": es más de lo que
+     * dura estar rodeado, así que no te salva de una mala pelea. Lo que arregla
+     * es la otra cosa — que un raspón del minuto 2 te condene el resto de la
+     * partida.
+     *
+     * ERAN 6 SEGUNDOS Y NO ALCANZABAN. Desde que el escuadrón comparte un solo
+     * hitbox repartido en tres cuerpos te tocan mucho más seguido, y seis
+     * segundos limpios casi no existen. Medido en una partida real: con 28
+     * enemigos alrededor la vida quedó clavada en 30 durante seis segundos y
+     * ganó UN punto. Una regeneración que nunca arranca es una regeneración que
+     * no está.
      *
      * A 1.5/s, recuperar los 100 de vida completos son 67 segundos limpios.
      */
-    REGEN_DELAY: 6,
+    REGEN_DELAY: 3.5,
     REGEN_PER_SECOND: 1.5,
   },
 

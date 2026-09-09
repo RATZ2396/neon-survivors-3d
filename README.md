@@ -291,6 +291,7 @@ src/
 ├── vfx/PostFX.js                bloom + el presupuesto que lo apaga solo
 ├── core/FrameEvents.js          deduce qué pasó este frame, para audio y VFX
 ├── meta/PlayerProfile.js         perfil persistente: moneda y mejoras compradas
+├── ui/MainMenu.js                la primera pantalla: nombre y tres botones
 ├── ui/StartMenu.js               perfil, taller y elección del arma base
 ├── ui/HUD.js                     vida, XP, tiempo, oleada y tu build
 ├── ui/UpgradeMenu.js             elección de mejora al subir de nivel

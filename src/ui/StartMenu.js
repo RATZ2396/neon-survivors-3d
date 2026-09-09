@@ -32,6 +32,8 @@ export class StartMenu {
     this.sound = null
     /** Abre el panel de ajustes. Lo engancha el GameManager. */
     this.onOptions = null
+    /** Vuelve a la primera pantalla. También lo engancha el GameManager. */
+    this.onBack = null
 
     this.el = document.createElement('div')
     this.el.id = 'start-menu'
@@ -48,6 +50,7 @@ export class StartMenu {
     this.el.innerHTML = `
       <div class="smenu">
         <div class="shead">
+          <button class="ssound" data-act="back">‹ VOLVER</button>
           <h1 class="logo">RTZ<b>BLOOD</b></h1>
           <span class="scoin"><i></i><b data-coin>0</b></span>
           <button class="ssound" data-act="mute" title="Silencio (M)"></button>
@@ -81,6 +84,7 @@ export class StartMenu {
       else if (act === 'buy') this._buy(el.dataset.track)
       else if (act === 'mute') this._toggleMute()
       else if (act === 'options') this.onOptions?.()
+      else if (act === 'back') this.onBack?.()
     })
   }
 

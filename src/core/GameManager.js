@@ -17,6 +17,7 @@ import { PickupManager } from '../progression/PickupManager.js'
 import { SkillSystem } from '../skills/SkillSystem.js'
 import { BossController } from '../enemies/BossController.js'
 import { StartMenu } from '../ui/StartMenu.js'
+import { MainMenu } from '../ui/MainMenu.js'
 import { Squad } from '../player/Squad.js'
 import { PlayerProfile } from '../meta/PlayerProfile.js'
 import { SoundManager } from '../audio/SoundManager.js'
@@ -34,6 +35,9 @@ import { PerformanceMonitor } from '../perf/PerformanceMonitor.js'
 import { RunRecorder } from '../dev/RunRecorder.js'
 
 const GAME_STATE = {
+  /** La primera pantalla: el nombre y tres botones. */
+  TITLE: 'TITLE',
+  /** El taller: elegir personaje y gastar la moneda entre partidas. */
   MENU: 'MENU',
   PLAYING: 'PLAYING',
   PAUSED: 'PAUSED',
@@ -152,6 +156,24 @@ export class GameManager {
     this.boss = new BossController(this.enemies, this.waves, this.player, this.scene)
     this.startMenu = new StartMenu((key) => this.startRun(key), this.profile)
 
+    /**
+     * La pantalla de antes del taller.
+     *
+     * El juego abría directo en la elección de personaje, con el árbol de
+     * mejoras y los precios a la vista. Para el que ya juega eso es un atajo;
+     * para el que llega de un portal es una pantalla de configuración que
+     * aparece sin haberla pedido, y la primera decisión del juego termina
+     * siendo "¿qué es todo esto?".
+     */
+    this.mainMenu = new MainMenu(
+      {
+        onPlay: () => this.toShop(),
+        onOptions: () => this.options.show('ajustes'),
+        onControls: () => this.options.show('controles'),
+      },
+      this.profile,
+    )
+
     // Audio. El contexto todavía NO existe: los navegadores lo bloquean hasta
     // que hay un gesto del usuario, así que se crea en el primer clic o tecla.
     this.sound = new SoundManager()
@@ -217,6 +239,7 @@ export class GameManager {
     // Es la misma pantalla a propósito — un ajuste que solo existe en un
     // sitio es un ajuste que la mitad de los jugadores no encuentra.
     this.startMenu.onOptions = () => this.options.show()
+    this.startMenu.onBack = () => this.toTitle()
 
     // Espacio alterna el apuntado sin pasar por el panel. Si el perfil no se
     // enterara, el ajuste se olvidaría al recargar y el menú mostraría lo
@@ -640,8 +663,7 @@ export class GameManager {
     this.pauseMenu.hide()
     this._clearRun()
     this.hud.hideGameOver()
-    this.state = GAME_STATE.MENU
-    this.startMenu.show()
+    this.toShop()
   }
 
   /**
@@ -661,6 +683,7 @@ export class GameManager {
     this.profile.weapon = weaponKey
     this.profile.save()
     this.startMenu.hide()
+    this.mainMenu.hide()
     this.hud.hideGameOver()
     this.hud.showHints()
     this.state = GAME_STATE.PLAYING
@@ -769,10 +792,30 @@ export class GameManager {
    * Arranca en el menú, no en la partida: el arma se elige antes de jugar y esa
    * elección define todo el run.
    */
+  /** Arranca en el título, no en el taller ni en la partida. */
   start() {
+    this.toTitle()
+    requestAnimationFrame(this._tick)
+  }
+
+  /** La primera pantalla: el nombre y tres botones. */
+  toTitle() {
+    this.startMenu.hide()
+    this.state = GAME_STATE.TITLE
+    this.mainMenu.show()
+  }
+
+  /**
+   * El taller: elegir personaje y gastar la moneda.
+   *
+   * Acá vuelve también el que muere o abandona, y NO al título: entre dos
+   * partidas lo que querés es cambiar de arma o comprar algo, no volver a
+   * leer el nombre del juego.
+   */
+  toShop() {
+    this.mainMenu.hide()
     this.state = GAME_STATE.MENU
     this.startMenu.show()
-    requestAnimationFrame(this._tick)
   }
 
   _tick() {

@@ -63,7 +63,7 @@ abstraerlo" — habrían hecho falta un cuarto y un quinto.
 
 Regeneración lenta mientras no recibas daño. Nada más que eso.
 
-## 4. ~~Enemigos~~ — hecho, menos la bruja
+## 4. ~~Enemigos~~ — hecho
 
 La forma acordada —**horda → minijefe CON la horda → jefe casi solo**— ahora
 está escrita en una sola tabla, `ELITE_SCHEDULE` (`config/BossDefs.js`), en
@@ -93,10 +93,10 @@ Segador** (el único que embiste y golpea el área) y **El Coloso** (el golpe
 más grande y más seguido del juego). Los tres salen del mismo controlador y de
 la misma tabla: un jefe nuevo son dos filas, no una clase.
 
-**Lo que queda del punto 4: la bruja.** Un minijefe que ataque a distancia
-necesita un pool de proyectiles enemigos, que hoy no existe — el único pool de
-balas es el del jugador y colisiona contra enemigos, no contra el jugador. Es
-trabajo de sistema, no de tabla, y por eso no entró con el resto.
+**La bruja se descartó** (2026-09-08). Era el minijefe que iba a atacar a
+distancia y no va a existir: pedía un pool de proyectiles enemigos entero —el
+único que hay es el del jugador y colisiona contra enemigos, no contra el
+jugador— para una sola unidad. Ver también "Descartado explícitamente".
 
 ## Nombres
 
@@ -112,7 +112,10 @@ No proponer de nuevo, ya se decidió que no:
 - Nivel de peligro
 - Cargador y recarga con munición
 - Estados con nombre (Ignite / Electrify / Injure)
-- Enemigos comunes que disparan — la bruja es un minijefe, es otra cosa
+- Enemigos comunes que disparan
+- **La bruja** y cualquier enemigo que ataque a distancia. Descartada el
+  2026-09-08: obliga a construir un pool de proyectiles enemigos completo
+  para una sola unidad
 - Evoluciones de armas
 - Acción manual tipo esquive. Lo único manual que se agregó es **ESPACIO**
   para alternar apuntado automático / manual con el mouse.
