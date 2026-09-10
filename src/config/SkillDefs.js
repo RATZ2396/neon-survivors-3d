@@ -236,40 +236,87 @@ export const SKILL_DEFS = [
   // ═══════════════════════════════════════════════════════════════════════
   // ESCOPETA — encima, ancho, empuje
   // ═══════════════════════════════════════════════════════════════════════
+  // ACÁ ESTABA `Impacto`, que empujaba con cada perdigón. Se fue, y con ella
+  // el modificador `knockback` y el `_knockback()` del pool: no quedaba nadie
+  // que los escribiera, y código que nada ejecuta es el problema que documenta
+  // el GDD §0.2. Lo que la condenó es que el empuje NO MUEVE A LOS `heavy` —
+  // hoy son siete, el Cazador y las seis élites—, o sea que su rasgo
+  // distintivo no le hacía nada a ninguna de las cosas que te matan. Mismo
+  // motivo por el que se fue `Onda expansiva` de la base.
+  //
+  // Las tres de la escopeta ahora cambian LA FORMA DEL DISPARO, que es lo que
+  // se ve: el abanico se endereza (Muro), se multiplica en el aire (Racimo) o
+  // barre a los costados (Doble cañón).
   {
-    key: 'SHOTGUN_KNOCK',
+    key: 'SHOTGUN_WALL',
     weapon: 'SHOTGUN',
-    name: 'Impacto',
-    desc: 'Cada perdigón empuja. Un disparo de cerca abre un pasillo.',
+    name: 'Muro',
+    desc: 'Los perdigones dejan de abrirse: salen en paralelo, hombro con hombro.',
     kind: SKILL_KIND.WEAPON,
     color: 0xffd166,
-    // Es por perdigón: seis impactos encima suman seis empujones.
+    /**
+     * Un abanico se despeina con la distancia: a 13 unidades, los 34° de la
+     * escopeta son casi 8 de ancho y los perdigones llegan sueltos. Una pared
+     * paralela mide lo mismo a 1 que a 13, así que la escopeta deja de perder
+     * densidad sin ganar ni un metro de alcance — su punto débil sigue siendo
+     * su punto débil.
+     */
     levels: [
-      { mods: { knockback: 0.3 } },
-      { mods: { knockback: 0.45 } },
-      { mods: { knockback: 0.62 } },
-      { mods: { knockback: 0.8 } },
-      { mods: { knockback: 1.0 } },
+      { mods: { wall: 1, wallGap: 0.35, wallDamage: 1.0 } },
+      { mods: { wall: 1, wallGap: 0.4, wallDamage: 1.03 } },
+      { mods: { wall: 1, wallGap: 0.45, wallDamage: 1.08 } },
+      { mods: { wall: 1, wallGap: 0.5, wallDamage: 1.14 } },
+      { mods: { wall: 1, wallGap: 0.55, wallDamage: 1.22 } },
+    ],
+  },
+  {
+    key: 'SHOTGUN_CLUSTER',
+    weapon: 'SHOTGUN',
+    name: 'Racimo',
+    desc: 'Cada perdigón revienta a mitad de camino y se abre en crías.',
+    kind: SKILL_KIND.WEAPON,
+    color: 0xffd166,
+    /**
+     * El disparo pasa a tener dos tiempos: sale como una escopeta y llega como
+     * una lluvia. Y como revienta pasado el 60% del vuelo, encima te sigue
+     * pegando el racimo entero SIN abrirse — la habilidad no le regala alcance,
+     * le agrega una segunda mitad.
+     *
+     * Las crías no atraviesan ni se vuelven a partir. Con seis perdigones de
+     * base, tres crías cada uno ya son 24 proyectiles por andanada.
+     */
+    levels: [
+      { mods: { cluster: 2, clusterDamage: 0.35, clusterAt: 0.55 } },
+      { mods: { cluster: 2, clusterDamage: 0.4, clusterAt: 0.56 } },
+      { mods: { cluster: 2, clusterDamage: 0.45, clusterAt: 0.58 } },
+      { mods: { cluster: 3, clusterDamage: 0.5, clusterAt: 0.59 } },
+      { mods: { cluster: 3, clusterDamage: 0.55, clusterAt: 0.6 } },
     ],
   },
   {
     key: 'SHOTGUN_DOUBLE',
     weapon: 'SHOTGUN',
     name: 'Doble cañón',
-    desc: 'Dispara en ráfaga y después recarga más lento. Ritmo, no cadencia.',
+    desc: 'Ráfaga de andanadas, y cada una barre un poco más al costado.',
     kind: SKILL_KIND.WEAPON,
     color: 0xffd166,
     /**
      * `burstCooldown` multiplica la recarga a propósito: sin ese costo esto no
      * sería un ritmo distinto, sería cadencia gratis. La ganancia real son
      * andanadas por segundo, y va de +29% en el nivel 1 a +94% en el 5.
+     *
+     * `burstSpread` es lo que la vuelve visible. Antes las andanadas de la
+     * ráfaga salían TODAS al mismo ángulo, o sea apiladas una encima de otra:
+     * se oían tres tiros y se veía uno. Ahora cada una se corre unos grados,
+     * alternando lados, y la ráfaga PINTA un barrido — a nivel 5 son los 34°
+     * propios del arma más ±22°, casi 80° de frente cubierto.
      */
     levels: [
-      { mods: { burst: 1, burstDelay: 0.14, burstCooldown: 1.55 } },
-      { mods: { burst: 1, burstDelay: 0.13, burstCooldown: 1.42 } },
-      { mods: { burst: 1, burstDelay: 0.12, burstCooldown: 1.3 } },
-      { mods: { burst: 2, burstDelay: 0.12, burstCooldown: 1.75 } },
-      { mods: { burst: 2, burstDelay: 0.11, burstCooldown: 1.55 } },
+      { mods: { burst: 1, burstDelay: 0.14, burstCooldown: 1.55, burstSpread: 14 } },
+      { mods: { burst: 1, burstDelay: 0.13, burstCooldown: 1.42, burstSpread: 16 } },
+      { mods: { burst: 1, burstDelay: 0.12, burstCooldown: 1.3, burstSpread: 18 } },
+      { mods: { burst: 2, burstDelay: 0.12, burstCooldown: 1.75, burstSpread: 20 } },
+      { mods: { burst: 2, burstDelay: 0.11, burstCooldown: 1.55, burstSpread: 22 } },
     ],
   },
 

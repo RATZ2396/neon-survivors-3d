@@ -71,6 +71,8 @@ export class WeaponSystem {
     this._burstLeft = 0
     this._burstTimer = 0
     this._burstAngle = 0
+    /** Cuál de la ráfaga va: decide para qué lado se corre. */
+    this._burstIndex = 0
     /** Contador para la bala explosiva cada N (Bala explosiva). */
     this._shotIndex = 0
     /** Qué mano dispara el próximo tiro con Dual: 0 la derecha, 1 la izquierda. */
@@ -131,6 +133,7 @@ export class WeaponSystem {
     this._sinceShot = 99
     this._burstLeft = 0
     this._burstTimer = 0
+    this._burstIndex = 0
     this._shotIndex = 0
     this._hand = 0
   }
@@ -188,7 +191,8 @@ export class WeaponSystem {
       if (this._burstTimer <= 0) {
         this._burstLeft--
         this._burstTimer = this.mods.burstDelay
-        this._shoot(this._burstAngle)
+        this._burstIndex++
+        this._shoot(this._burstAngle + this._burstOffset())
       }
     }
 
@@ -337,6 +341,7 @@ export class WeaponSystem {
       this._burstLeft = this.mods.burst
       this._burstTimer = this.mods.burstDelay
       this._burstAngle = baseAngle
+      this._burstIndex = 0
     }
 
     // El que dispara mira hacia donde dispara. SIEMPRE, se esté moviendo o no:
@@ -372,6 +377,21 @@ export class WeaponSystem {
   }
 
   /**
+   * Cuánto se corre la andanada número `_burstIndex` de la ráfaga.
+   *
+   * Alterna lados y se va abriendo: la primera al centro, la siguiente a un
+   * lado, la de después al otro. Así la ráfaga pinta un barrido en vez de
+   * apilar tres andanadas en el mismo lugar, que es lo que hacía antes.
+   */
+  _burstOffset() {
+    const s = this.mods.burstSpread
+    if (s <= 0) return 0
+    const n = this._burstIndex
+    const lado = n % 2 === 1 ? 1 : -1
+    return (lado * Math.ceil(n / 2) * s * Math.PI) / 180
+  }
+
+  /**
    * Una andanada hacia `angle`.
    *
    * Acá había una segunda andanada 180° hacia atrás, de la habilidad `Cañón
@@ -404,6 +424,22 @@ export class WeaponSystem {
 
     const dmg = this.damageMult * scale
     const m = this.mods
+
+    // MURO: los proyectiles dejan de abrirse y salen en paralelo, hombro con
+    // hombro, perpendiculares al tiro. Un abanico se despeina con la distancia
+    // —a 13 unidades, los 34° de la escopeta son casi 8 de ancho—; una pared
+    // mide lo mismo a 1 que a 13. Sale por acá y no por el bucle de abajo
+    // porque no es un abanico más angosto: no hay abanico.
+    if (m.wall > 0) {
+      const dirX = Math.sin(angle)
+      const dirZ = Math.cos(angle)
+      const desde = (-(count - 1) / 2) * m.wallGap
+      for (let k = 0; k < count; k++) {
+        const off = desde + k * m.wallGap
+        this._one(px + dirZ * off, pz - dirX * off, dirX, dirZ, dmg * m.wallDamage)
+      }
+      return
+    }
 
     for (let k = 0; k < count; k++) {
       const a = angle + start + step * k

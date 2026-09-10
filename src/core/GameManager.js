@@ -291,6 +291,18 @@ export class GameManager {
     window.addEventListener('keydown', this._onKey)
 
     /**
+     * Zoom con la rueda del mouse.
+     *
+     * Vive acá y no en InputManager porque InputManager traduce MOVIMIENTO —un
+     * vector normalizado— y esto no mueve al jugador: mueve la cámara.
+     *
+     * `passive: false` no es adorno: sin preventDefault, adentro del iframe de
+     * un portal la rueda scrollea la página de alrededor mientras jugás.
+     */
+    this._onWheel = this._onWheel.bind(this)
+    window.addEventListener('wheel', this._onWheel, { passive: false })
+
+    /**
      * PERDER EL FOCO PAUSA LA PARTIDA.
      *
      * En un portal el juego vive dentro de un iframe y no controla lo que
@@ -418,6 +430,20 @@ export class GameManager {
     // R reintenta con la misma arma; T vuelve al taller.
     if (e.code === 'KeyR') this.startRun(this.startMenu.selected)
     else if (e.code === 'KeyT') this.toMenu()
+  }
+
+  /**
+   * Un clic de rueda = un paso de zoom.
+   *
+   * Se usa el SIGNO y no el valor: `deltaY` cambia de escala según el mouse,
+   * el sistema operativo y el navegador —hay ruedas que mandan 3 y trackpads
+   * que mandan 300—, así que tomarlo tal cual haría que el zoom se sintiera
+   * distinto en cada máquina.
+   */
+  _onWheel(e) {
+    if (!this.cameraController || !e.deltaY) return
+    e.preventDefault()
+    this.cameraController.zoomBy(Math.sign(e.deltaY))
   }
 
   _onVisibility() {

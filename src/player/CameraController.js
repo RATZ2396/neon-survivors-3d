@@ -19,6 +19,14 @@ export class CameraController {
     this._desired = new THREE.Vector3()
     this._lookAt = new THREE.Vector3()
 
+    /**
+     * Multiplicador de la distancia de cámara. 1 = la de la tabla.
+     *
+     * Se define ANTES del snap() de abajo: snap ya calcula la posición y la
+     * necesita puesta.
+     */
+    this.zoom = 1
+
     this.snap()
   }
 
@@ -36,12 +44,32 @@ export class CameraController {
     this.camera.lookAt(this._lookAt)
   }
 
+  /**
+   * Acerca o aleja la cámara. `pasos` positivo aleja, negativo acerca.
+   *
+   * @returns {number} el zoom que quedó, ya recortado contra los topes.
+   */
+  zoomBy(pasos) {
+    const { ZOOM } = CONFIG.CAMERA
+    const z = this.zoom * Math.pow(ZOOM.STEP, pasos)
+    this.zoom = Math.min(ZOOM.MAX, Math.max(ZOOM.MIN, z))
+    return this.zoom
+  }
+
+  /** Vuelve a la distancia de la tabla. */
+  resetZoom() {
+    this.zoom = 1
+  }
+
   _computeDesired() {
     const { OFFSET } = CONFIG.CAMERA
+    // El zoom escala el offset ENTERO: la cámara se acerca por la misma línea
+    // en vez de bajar hacia el piso, así que el ángulo no cambia nunca.
+    const z = this.zoom
     this._desired.set(
-      this.target.position.x + OFFSET.x,
-      this.target.position.y + OFFSET.y,
-      this.target.position.z + OFFSET.z,
+      this.target.position.x + OFFSET.x * z,
+      this.target.position.y + OFFSET.y * z,
+      this.target.position.z + OFFSET.z * z,
     )
   }
 

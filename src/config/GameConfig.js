@@ -100,6 +100,23 @@ export const CONFIG = {
     FOV: 55,
     /** Suavizado del seguimiento; mayor = más pegada al jugador. */
     SMOOTHING: 9.0,
+    /**
+     * Zoom con la rueda del mouse.
+     *
+     * Multiplica el OFFSET ENTERO —alto y profundidad juntos—, no solo la
+     * distancia. Esa es la decisión: la cámara viaja por la MISMA LÍNEA, así
+     * que acercarse no cambia su inclinación. Si solo se moviera en Z, acercar
+     * aplastaría la perspectiva y terminarías mirando al personaje desde
+     * arriba, que es justo lo que no sirve para verle el modelo.
+     *
+     * El mínimo llega bastante más cerca de lo que el juego necesita, a
+     * propósito: es para mirarle el modelo al muñeco, no para jugar. El máximo
+     * está atado a la niebla —FOG_FAR es 95—: más lejos, la arena se ve gris.
+     *
+     * El paso es multiplicativo y no aditivo para que un clic de rueda se
+     * sienta igual de cerca que de lejos.
+     */
+    ZOOM: { MIN: 0.35, MAX: 1.8, STEP: 1.12 },
   },
 
   WORLD: {
@@ -210,6 +227,16 @@ export const CONFIG = {
      * la habilidad más visible del arma se ve exactamente igual que no tenerla.
      */
     DUAL_MUZZLE_OFFSET: 0.22,
+
+    /**
+     * Apertura del racimo: en cuántos grados se abren las crías cuando un
+     * perdigón se parte en el aire (`Racimo`, escopeta).
+     *
+     * Es fijo y no sube por nivel a propósito. Lo que se compra son crías y
+     * daño; si además se abriera más, la habilidad tendría tres ejes y ninguno
+     * se leería.
+     */
+    CLUSTER_ARC_DEG: 30,
 
     /**
      * Radio de amenaza para la elección de blanco.

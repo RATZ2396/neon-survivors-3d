@@ -56,6 +56,14 @@ export class ProjectileManager {
      *  pegue dos veces al mismo mientras sigue solapada con él. */
     this.lastHitId = new Int32Array(max)
     /**
+     * Crías que le quedan por soltar (Racimo). Tiene que ser POR BALA porque
+     * se gasta: se pone en cero al partirse, y las crías nacen en cero, así
+     * que ninguna se vuelve a partir.
+     */
+    this.splits = new Int8Array(max)
+    /** Con cuánta vida restante se parte. Se calcula al disparar. */
+    this.splitAt = new Float32Array(max)
+    /**
      * Quién disparó cada bala: 0 sos vos, 1 y 2 los compañeros.
      *
      * Existe para una sola pregunta, y es de balance: ¿cuánto aporta de
@@ -108,6 +116,11 @@ export class ProjectileManager {
     this.explodeRadius[i] = boomRadius || def.explodeRadius || 0
     this.explodeDamage[i] = (boomDamage || def.explodeDamage || 0) * damageMult
     this.lastHitId[i] = 0
+    // El punto de partirse se congela acá, como el daño: se guarda cuánta vida
+    // le tiene que quedar, no una fracción, así el chequeo por frame es una
+    // comparación y no una cuenta.
+    this.splits[i] = this.mods.cluster
+    this.splitAt[i] = this.mods.cluster > 0 ? def.lifetime * (1 - this.mods.clusterAt) : 0
 
     this.mesh.setColorAt(i, _color.setHex(def.color))
     this.mesh.instanceColor.needsUpdate = true
@@ -130,6 +143,8 @@ export class ProjectileManager {
       this.explodeDamage[i] = this.explodeDamage[last]
       this.bounces[i] = this.bounces[last]
       this.lastHitId[i] = this.lastHitId[last]
+      this.splits[i] = this.splits[last]
+      this.splitAt[i] = this.splitAt[last]
 
       const c = this.mesh.instanceColor.array
       c[i * 3] = c[last * 3]
@@ -168,6 +183,12 @@ export class ProjectileManager {
         continue
       }
 
+      // RACIMO: pasado su punto, el perdigón se abre en crías y sigue viaje.
+      // Las crías se agregan POR ENCIMA del índice actual y este bucle va
+      // hacia atrás, así que no se procesan hasta el frame que viene — la
+      // misma regla que usa EnemyManager para el que se parte al morir.
+      if (this.splits[i] > 0 && this.life[i] <= this.splitAt[i]) this._split(i)
+
       const x = (this.posX[i] += this.velX[i] * delta)
       const z = (this.posZ[i] += this.velZ[i] * delta)
 
@@ -185,8 +206,6 @@ export class ProjectileManager {
       this.hitCount++
       this.hitX = x
       this.hitZ = z
-
-      if (this.mods.knockback > 0) this._knockback(hit, i)
 
       if (this.explodeRadius[i] > 0) {
         this._explode(x, z, this.explodeRadius[i], this.explodeDamage[i], hit, this.owner[i])
@@ -217,30 +236,62 @@ export class ProjectileManager {
   }
 
   /**
-   * Empuje del impacto. Escribe la posición directo, como la separación de
-   * la horda: el empuje no es daño y no tiene por qué esperar a que se
-   * resuelva la cola. A los `heavy` no los mueve nada.
+   * Racimo: el proyectil se abre en crías y sigue.
+   *
+   * Las crías NO son balas nuevas del arma: nacen de esta, con su velocidad,
+   * su dueño y su color. Por eso se escriben a mano en vez de llamar a fire(),
+   * que necesitaría el `def` del arma — y el pool no guarda cuál lo disparó.
+   *
+   * No atraviesan (`pierce` en 0) ni se vuelven a partir. Con seis perdigones
+   * de base y tres crías cada uno ya son 24 proyectiles por andanada; dejarlas
+   * encadenar sería una bomba con nombre de escopeta.
    */
-  _knockback(hit, i) {
-    const e = this.enemies
-    if (e.heavy[hit]) return
+  _split(i) {
+    const n = this.splits[i]
+    this.splits[i] = 0
 
     const vx = this.velX[i]
     const vz = this.velZ[i]
-    const len = Math.sqrt(vx * vx + vz * vz)
-    if (len < 0.0001) return
+    const speed = Math.sqrt(vx * vx + vz * vz)
+    if (speed < 0.0001) return
 
-    const k = this.mods.knockback
-    const edge = CONFIG.WORLD.ARENA_SIZE / 2 - e.radius[hit]
+    const base = Math.atan2(vx / speed, vz / speed)
+    const arc = (CONFIG.COMBAT.CLUSTER_ARC_DEG * Math.PI) / 180
+    const step = n > 1 ? arc / (n - 1) : 0
+    const desde = n > 1 ? -arc / 2 : 0
+    const dmg = this.damage[i] * this.mods.clusterDamage
+    const c = this.mesh.instanceColor.array
 
-    let nx = e.posX[hit] + (vx / len) * k
-    let nz = e.posZ[hit] + (vz / len) * k
-    if (nx > edge) nx = edge
-    else if (nx < -edge) nx = -edge
-    if (nz > edge) nz = edge
-    else if (nz < -edge) nz = -edge
-    e.posX[hit] = nx
-    e.posZ[hit] = nz
+    for (let k = 0; k < n; k++) {
+      // El pool NO crece: si está lleno, la cría se pierde igual que se
+      // pierde un disparo.
+      if (this.count >= this.max) break
+
+      const a = base + desde + step * k
+      const j = this.count++
+
+      this.posX[j] = this.posX[i]
+      this.posZ[j] = this.posZ[i]
+      this.velX[j] = Math.sin(a) * speed
+      this.velZ[j] = Math.cos(a) * speed
+      this.life[j] = this.life[i]
+      this.damage[j] = dmg
+      this.size[j] = this.size[i] * 0.7
+      this.owner[j] = this.owner[i]
+      this.pierce[j] = 0
+      this.explodeRadius[j] = 0
+      this.explodeDamage[j] = 0
+      this.bounces[j] = 0
+      this.lastHitId[j] = 0
+      this.splits[j] = 0
+      this.splitAt[j] = 0
+
+      c[j * 3] = c[i * 3]
+      c[j * 3 + 1] = c[i * 3 + 1]
+      c[j * 3 + 2] = c[i * 3 + 2]
+    }
+
+    this.mesh.instanceColor.needsUpdate = true
   }
 
   /**

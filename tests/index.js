@@ -7,6 +7,7 @@ import { Progression } from '../src/progression/Progression.js'
 import { PlayerProfile } from '../src/meta/PlayerProfile.js'
 import { META_TREES, costOfLevel, modifiersFor } from '../src/config/MetaDefs.js'
 import { WEAPON_DEFS, WEAPON } from '../src/config/WeaponDefs.js'
+import { CameraController } from '../src/player/CameraController.js'
 import { SpatialGrid } from '../src/enemies/SpatialGrid.js'
 import { EnemyManager } from '../src/enemies/EnemyManager.js'
 import { ENEMY_DEFS, ENEMY_TYPE } from '../src/config/EnemyDefs.js'
@@ -1485,24 +1486,6 @@ describe('Balas con habilidades', () => {
     expect(p.count).toBe(1)
   })
 
-  test('Impacto empuja al que recibe', () => {
-    const { enemies, p, mods } = armar()
-    mods.knockback = 1
-    const i = enemies.spawn(ENEMY_TYPE.NORMAL, 0, 1)
-    tirar(p, enemies)
-    p.update(0.05)
-    expect(enemies.posZ[i]).toBeCloseTo(2, 1e-6)
-  })
-
-  test('pero al boss no lo mueve', () => {
-    const { enemies, p, mods } = armar()
-    mods.knockback = 1
-    const i = enemies.spawn(ENEMY_TYPE.CUBE_KING, 0, 1)
-    tirar(p, enemies)
-    p.update(0.05)
-    expect(enemies.posZ[i]).toBe(1)
-  })
-
   test('Rebote reapunta la bala en vez de gastarla', () => {
     const { enemies, p, mods } = armar()
     mods.ricochet = 1
@@ -2430,6 +2413,227 @@ describe('Dual: la pistola se desdobla', () => {
     const propias = SKILL_DEFS.filter((d) => d.weapon === 'PISTOL')
     expect(propias.length).toBe(3)
     expect(propias.map((d) => d.key)).toContain('PISTOL_DUAL')
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Escopeta: la forma del disparo', () => {
+  const ESCOPETA = WEAPON_DEFS[WEAPON.SHOTGUN]
+  const nivel = (key, n) => SKILL_DEFS.find((d) => d.key === key).levels[n].mods
+
+  function arma() {
+    const enemies = new EnemyManager(escena)
+    const player = { position: { x: 0, y: 0, z: 0 }, isMoving: false, faceTowards() {}, recoil() {} }
+    const disparos = []
+    const projectiles = { fire: (x, z, dx, dz, def, dmg) => disparos.push({ x, z, dx, dz, dmg }) }
+    const mods = createWeaponMods()
+    const w = new WeaponSystem(player, enemies, projectiles, mods)
+    w.equip('SHOTGUN')
+    // Blanco en +Z: el ángulo de tiro queda en 0 y el desplazamiento lateral
+    // cae entero sobre la X, así las cuentas de abajo se leen solas.
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 8)
+    return { w, mods, disparos }
+  }
+
+  test('sin Muro los perdigones se abren en abanico', () => {
+    const { w, disparos } = arma()
+    w._fire()
+    expect(disparos.length).toBe(ESCOPETA.count)
+    // Salen del mismo punto y para lados distintos: eso es un abanico.
+    for (const d of disparos) expect(d.x).toBeCloseTo(0)
+    expect(new Set(disparos.map((d) => d.dx.toFixed(5))).size).toBe(ESCOPETA.count)
+  })
+
+  test('Muro: todos apuntan al mismo lado y se reparten al costado', () => {
+    const { w, mods, disparos } = arma()
+    Object.assign(mods, nivel('SHOTGUN_WALL', 4))
+    w._fire()
+
+    expect(disparos.length).toBe(ESCOPETA.count)
+    // Una pared es esto: una sola dirección para todos.
+    for (const d of disparos) {
+      expect(d.dx).toBeCloseTo(disparos[0].dx)
+      expect(d.dz).toBeCloseTo(disparos[0].dz)
+    }
+
+    const xs = disparos.map((d) => d.x).sort((a, b) => a - b)
+    for (let i = 1; i < xs.length; i++) expect(xs[i] - xs[i - 1]).toBeCloseTo(mods.wallGap, 1e-5)
+    // Y queda centrada en el jugador, no colgada de un lado.
+    expect(xs[0] + xs[xs.length - 1]).toBeCloseTo(0, 1e-5)
+  })
+
+  test('Muro: la pared mide lo mismo a cualquier distancia', () => {
+    const { w, mods, disparos } = arma()
+    Object.assign(mods, nivel('SHOTGUN_WALL', 4))
+    w._fire()
+
+    const xs = disparos.map((d) => d.x)
+    const ancho = Math.max(...xs) - Math.min(...xs)
+    // Las balas viajan paralelas, así que el ancho de salida ES el ancho final.
+    expect(ancho).toBeCloseTo((ESCOPETA.count - 1) * mods.wallGap, 1e-5)
+    // Y es MUCHO más angosto que lo que el abanico abre a su alcance máximo.
+    const abanico = 2 * ESCOPETA.range * Math.tan((ESCOPETA.spreadDeg * Math.PI) / 360)
+    expect(ancho).toBeLessThan(abanico)
+  })
+
+  test('Doble cañón: cada andanada de la ráfaga se corre a un lado distinto', () => {
+    const { w, mods } = arma()
+    Object.assign(mods, nivel('SHOTGUN_DOUBLE', 4))
+    const grados = (r) => (r * 180) / Math.PI
+
+    w._burstIndex = 0
+    expect(w._burstOffset()).toBe(0)
+    w._burstIndex = 1
+    expect(grados(w._burstOffset())).toBeCloseTo(mods.burstSpread, 1e-5)
+    w._burstIndex = 2
+    expect(grados(w._burstOffset())).toBeCloseTo(-mods.burstSpread, 1e-5)
+  })
+
+  test('sin burstSpread la ráfaga se apila, como antes', () => {
+    const { w } = arma()
+    w._burstIndex = 2
+    expect(w._burstOffset()).toBe(0)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Racimo: el perdigón se parte en el aire', () => {
+  const ESCOPETA = WEAPON_DEFS[WEAPON.SHOTGUN]
+  const nivel = (n) => SKILL_DEFS.find((d) => d.key === 'SHOTGUN_CLUSTER').levels[n].mods
+
+  function armar(n = 4) {
+    const enemies = new EnemyManager(escena)
+    const mods = createWeaponMods()
+    const p = new ProjectileManager(escena, enemies, mods)
+    Object.assign(mods, nivel(n))
+    return { p, mods }
+  }
+
+  /** Lo dispara y lo lleva justo pasado su punto de partirse, sin matarlo. */
+  function hastaPartirse(p) {
+    p.fire(0, 0, 0, 1, ESCOPETA)
+    p.update(0.01)
+    const antes = p.count
+    p.update(0.35)
+    return antes
+  }
+
+  test('antes de su punto no se parte; después sí', () => {
+    const { p, mods } = armar()
+    const antes = hastaPartirse(p)
+    expect(antes).toBe(1)
+    expect(p.count).toBe(1 + mods.cluster)
+  })
+
+  test('las crías llevan la fracción del daño del padre', () => {
+    const { p, mods } = armar()
+    hastaPartirse(p)
+    expect(p.damage[0]).toBeCloseTo(ESCOPETA.damage)
+    for (let i = 1; i < p.count; i++) {
+      expect(p.damage[i]).toBeCloseTo(ESCOPETA.damage * mods.clusterDamage)
+    }
+  })
+
+  test('las crías no se vuelven a partir', () => {
+    const { p } = armar()
+    hastaPartirse(p)
+    const tras = p.count
+    for (let i = 0; i < p.count; i++) expect(p.splits[i]).toBe(0)
+    p.update(0.1)
+    expect(p.count).toBe(tras)
+  })
+
+  test('salen abiertas y conservan la velocidad del padre', () => {
+    const { p } = armar()
+    hastaPartirse(p)
+    const rapidez = (i) => Math.sqrt(p.velX[i] * p.velX[i] + p.velZ[i] * p.velZ[i])
+    for (let i = 1; i < p.count; i++) expect(rapidez(i)).toBeCloseTo(rapidez(0), 1e-3)
+    // Y no viajan todas juntas: el racimo se abre.
+    expect(new Set(Array.from({ length: p.count - 1 }, (_, i) => p.velX[i + 1].toFixed(4))).size)
+      .toBeGreaterThan(1)
+  })
+
+  test('sin Racimo el perdigón viaja entero y no aparece nada', () => {
+    const enemies = new EnemyManager(escena)
+    const p = new ProjectileManager(escena, enemies, createWeaponMods())
+    p.fire(0, 0, 0, 1, ESCOPETA)
+    p.update(0.35)
+    expect(p.count).toBe(1)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('El mazo después de Impacto', () => {
+  test('la escopeta queda con tres propias y ninguna es Impacto', () => {
+    const propias = SKILL_DEFS.filter((d) => d.weapon === 'SHOTGUN')
+    expect(propias.length).toBe(3)
+    expect(propias.map((d) => d.name)).toContain('Muro')
+    expect(propias.map((d) => d.name)).toContain('Racimo')
+    expect(propias.map((d) => d.name)).toContain('Doble cañón')
+  })
+
+  test('ya no hay hueco: los tres personajes tienen tres propias', () => {
+    for (const def of WEAPON_DEFS) {
+      expect(SKILL_DEFS.filter((d) => d.weapon === def.key).length).toBe(3)
+    }
+  })
+
+  test('el empuje se fue con Impacto y no dejó el modificador colgado', () => {
+    expect('knockback' in createWeaponMods()).toBe(false)
+    expect(SKILL_DEFS.some((d) => d.levels?.some?.((l) => l.mods && 'knockback' in l.mods))).toBe(false)
+  })
+})
+
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Zoom de cámara', () => {
+  function armar() {
+    // A la cámara solo se le piden estas tres cosas.
+    const camera = { position: { copy() {}, lerp() {} }, lookAt() {} }
+    const target = { position: { x: 0, y: 0, z: 0 } }
+    return new CameraController(camera, target)
+  }
+
+  test('arranca en la distancia de la tabla', () => {
+    expect(armar().zoom).toBe(1)
+  })
+
+  test('la rueda acerca y aleja', () => {
+    const c = armar()
+    expect(c.zoomBy(-1)).toBeLessThan(1)
+    const cerca = c.zoom
+    c.zoomBy(1)
+    expect(c.zoom).toBeGreaterThan(cerca)
+    expect(c.zoom).toBeCloseTo(1, 1e-9)
+  })
+
+  test('no se pasa de los topes por más que insistas', () => {
+    const c = armar()
+    for (let i = 0; i < 200; i++) c.zoomBy(-1)
+    expect(c.zoom).toBe(CONFIG.CAMERA.ZOOM.MIN)
+    for (let i = 0; i < 400; i++) c.zoomBy(1)
+    expect(c.zoom).toBe(CONFIG.CAMERA.ZOOM.MAX)
+  })
+
+  test('acercarse NO cambia el ángulo de la cámara', () => {
+    const c = armar()
+    c._computeDesired()
+    const lejos = { y: c._desired.y, z: c._desired.z }
+
+    c.zoomBy(-6)
+    c._computeDesired()
+    const cerca = { y: c._desired.y, z: c._desired.z }
+
+    // Mismo cociente alto/profundidad = misma inclinación. La cámara viaja por
+    // la misma línea en vez de caerse hacia el piso.
+    expect(cerca.y / cerca.z).toBeCloseTo(lejos.y / lejos.z, 1e-9)
+    expect(cerca.z).toBeLessThan(lejos.z)
+  })
+
+  test('resetZoom vuelve a la de la tabla', () => {
+    const c = armar()
+    c.zoomBy(-5)
+    c.resetZoom()
+    expect(c.zoom).toBe(1)
   })
 })
 

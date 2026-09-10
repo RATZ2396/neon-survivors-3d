@@ -46,10 +46,24 @@ export function createWeaponMods() {
     burstDelay: 0,
     /** Cuánto se encarece la recarga por tirar en ráfaga. */
     burstCooldown: 1,
+    /** Grados que se corre cada andanada de la ráfaga respecto de la anterior. */
+    burstSpread: 0,
+    /** 1 = los proyectiles salen en paralelo en vez de en abanico (Muro). */
+    wall: 0,
+    /** Separación entre ellos, en unidades. */
+    wallGap: 0,
+    /** Multiplicador de daño de cada uno. */
+    wallDamage: 1,
     /** Reducción máxima de recarga por fuego sostenido (0.42 = -42%). */
     ramp: 0,
     /** Segundos de fuego sostenido hasta llegar a esa reducción máxima. */
     rampTime: 1,
+    /** En cuántas crías se parte cada proyectil en el aire. 0 = ninguna. */
+    cluster: 0,
+    /** Fracción del daño del padre que lleva cada cría. */
+    clusterDamage: 0,
+    /** A qué fracción de su vuelo se parte. 0.6 = pasado el 60%. */
+    clusterAt: 0,
     /** Cada cuántas balas sale una explosiva. 0 = ninguna. */
     boomEvery: 0,
     /** Radio y daño de esa explosión. */
@@ -69,8 +83,6 @@ export function createWeaponMods() {
     pierceAdd: 0,
     /** 1 = atraviesa a los que frenan balas (tanque, boss). */
     pierceAll: 0,
-    /** Unidades que retrocede el enemigo por impacto. */
-    knockback: 0,
   }
 }
 

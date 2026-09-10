@@ -40,8 +40,8 @@ y son modificadores del arma, no armas nuevas:
 |---|---|---|
 | Rebote | Impacto (empuje) | Calentamiento |
 | ~~Cañón trasero~~ | ~~Abanico trasero~~ | Doble línea |
-| Perforación total | Doble cañón | Bala explosiva |
-| ~~Dual~~ | — | — |
+| ~~Dual~~ | ~~Muro~~ · ~~Racimo~~ | — |
+| Perforación total | ~~Impacto~~ → Doble cañón | Bala explosiva |
 
 Las dos tachadas **se borraron** al agregar el escuadrón: repetían la andanada
 180° hacia atrás, o sea un tipo disparando por la espalda sin darse vuelta.
@@ -49,13 +49,14 @@ Cubrían el problema real —que la horda te rodea— pero se veían falsas, por
 eran. Ahora eso lo hace un compañero de verdad, que se elige en el mismo menú de
 nivel (ver `player/Squad.js`).
 
-**~~`Dual`~~ — hecha el 2026-09-10.** Es la tercera de la pistola y tapó el
-hueco que había dejado `Cañón trasero`. Cómo funciona y por qué la izquierda no
-llega al 100% está en el README, que es donde va lo que existe. Acá solo queda
-lo que sigue faltando: **la escopeta sigue con dos**.
+**~~El hueco de las propias~~ — cerrado el 2026-09-10.** `Dual` tapó el de la
+pistola y `Muro` y `Racimo` el de la escopeta, que además perdió a `Impacto`:
+su empuje no movía a los `heavy`, o sea que no le hacía nada a ninguna de las
+cosas que te matan. **Los tres personajes tienen tres propias.** Cómo funciona
+cada una está en el README, que es donde va lo que existe.
 
-La cuenta quedó en **7 u 8 al alcance por partida** según el personaje (5 de base
-+ 2 o 3 propias), más hasta 2 compañeros, con un techo de 4 habilidades
+La cuenta quedó en **8 al alcance por partida** para cualquier personaje (5 de base
++ 3 propias), más hasta 2 compañeros, con un techo de 4 habilidades
 equipadas: nunca las tenés todas.
 
 **Lo que queda del punto 1:** unificar arma y habilidad en un solo sistema.

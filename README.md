@@ -22,6 +22,7 @@ Abre en `http://localhost:5173`.
 | **Esc** o **P** | pausar / seguir |
 | **M** | silenciar / restaurar el sonido (se recuerda en el perfil) |
 | **B** | encender / apagar el bloom, para comparar |
+| **Rueda del mouse** | acercar o alejar la cámara (0.35× a 1.8×) |
 | **R** / **T** tras morir | reintentar con la misma arma / volver al taller |
 
 La barra de abajo es **tu build**: el arma elegida (con su recarga) y las habilidades que fuiste consiguiendo, con su nivel. El panel de arriba a la izquierda es diagnóstico técnico (FPS, memoria, draw calls) y se apaga con `CONFIG.DEV.SHOW_DEBUG_PANEL`.
@@ -32,9 +33,9 @@ Son dos progresiones distintas y no se mezclan:
 
 | | Arma base | Habilidades |
 |---|---|---|
-| Cuáles | pistola · escopeta · metralleta | 5 de base + 2 o 3 propias del arma |
+| Cuáles | pistola · escopeta · metralleta | 5 de base + 3 propias del arma |
 | Cuándo se elige | **antes** de la partida, en la pantalla de inicio | **durante** la partida, al subir de nivel |
-| Cuántas por partida | una sola, no cambia | 7 u 8 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
+| Cuántas por partida | una sola, no cambia | 8 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
 | Cómo se mejoran | **fuera** de la partida, en el taller, con la moneda ganada | **dentro** de la partida, con la XP de las gemas |
 | Se pierden al morir | no, son permanentes | sí, se empieza de cero |
 | Dónde se editan | `config/WeaponDefs.js` y `config/MetaDefs.js` | `config/SkillDefs.js` |
@@ -46,9 +47,9 @@ El arma define **cómo se juega toda la partida**; las habilidades definen **en 
 No hay arsenal: el arma elegida es la única de la partida. La profundidad sale de las habilidades, y por eso hay **dos familias**:
 
 - **Base compartida (5).** Las ve cualquier personaje: sierras, rayo, escarcha, señuelo y guadaña.
-- **Propias del arma (2 o 3 por arma).** Solo aparecen en el menú de nivel si estás jugando con esa arma. La diferencia en la tabla es una sola clave: `weapon: 'SHOTGUN'`.
+- **Propias del arma (3 por arma).** Solo aparecen en el menú de nivel si estás jugando con esa arma. La diferencia en la tabla es una sola clave: `weapon: 'SHOTGUN'`.
 
-Con 7 u 8 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
+Con 8 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
 
 Hubo una cuarta de base, el **Dron** —acompañantes que disparaban solos—, y se sacó justamente por la regla de arriba: un acompañante que dispara por su cuenta es una segunda arma con otro nombre.
 
@@ -112,13 +113,31 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 | Pistola | **Rebote** | agotada la penetración, la bala salta al siguiente (hasta 3 saltos) |
 | Pistola | **Perforación total** | atraviesa a los que frenan balas — tanque y boss |
 | Pistola | **Dual** | dos pistolas alternadas al mismo blanco: media recarga, la izquierda al 45-80% |
-| Escopeta | **Impacto** | cada perdigón empuja; un disparo de cerca abre un pasillo |
-| Escopeta | **Doble cañón** | ráfaga de 2-3 andanadas y después recarga más lenta |
+| Escopeta | **Muro** | los perdigones dejan de abrirse: salen en paralelo, hombro con hombro |
+| Escopeta | **Racimo** | cada perdigón revienta pasado el 60% del vuelo y se abre en crías |
+| Escopeta | **Doble cañón** | ráfaga de 2-3 andanadas, cada una corrida a un lado: barre en vez de apilarse |
 | Metralleta | **Calentamiento** | disparando seguido, la recarga baja hasta -42% |
 | Metralleta | **Doble línea** | balas paralelas al costado, no abanico |
 | Metralleta | **Bala explosiva** | cada 6-12 balas, una estalla al impactar |
 
-El **empuje** de Impacto no mueve a los `heavy` (las élites y el Cazador), a propósito: si un jefe retrocediera con cada golpe la pelea se ganaría quedándose quieto.
+**Las tres de la escopeta cambian el DIBUJO del disparo**, que es lo que se ve
+desde arriba. Un abanico se despeina con la distancia —a 13 unidades, los 34°
+del arma son casi 8 de ancho y los perdigones llegan sueltos—, así que cada una
+ataca esa forma por un lado distinto: **Muro** la endereza y la pared mide lo
+mismo a 1 que a 13; **Racimo** le agrega una segunda mitad, porque revienta
+pasado el 60% del vuelo y encima te sigue pegando entero; **Doble cañón** corre
+cada andanada de la ráfaga a un lado, y a nivel 5 cubre casi 80° de frente.
+
+Ninguna le regala alcance. Ser inútil de lejos es la descripción de la escopeta,
+no su bug.
+
+Hubo una cuarta, **Impacto**, que empujaba con cada perdigón, y se borró junto
+con el modificador `knockback` y el `_knockback()` del pool: sin ella no quedaba
+nadie que los escribiera. La condenó lo mismo que a Onda expansiva — el empuje
+**no mueve a los `heavy`** (las élites y el Cazador, siete en total), o sea que
+su rasgo distintivo no le hacía nada a ninguna de las cosas que te matan. Y ese
+techo era a propósito: si un jefe retrocediera con cada golpe, la pelea se
+ganaría quedándose quieto.
 
 Eso también fue lo que se llevó puesta a **Onda expansiva**, que era la tercera
 base: su rasgo distintivo era el empuje, y el empuje no le hacía nada a ninguna
@@ -132,7 +151,7 @@ esa es la decisión que las hace correctas: el swap-remove mueve los índices en
 cuanto muere cualquiera, así que una marca por enemigo terminaría frenando o
 desviando al que ocupó el hueco. Una zona no puede equivocarse de enemigo.
 
-La pistola y la escopeta tenían una tercera —**Cañón trasero** y **Abanico trasero**— que repetía la andanada 180° hacia atrás. Se borraron: ver el escuadrón, abajo. El hueco de la pistola lo tapó **Dual**; **el de la escopeta sigue abierto**.
+La pistola y la escopeta tenían una tercera —**Cañón trasero** y **Abanico trasero**— que repetía la andanada 180° hacia atrás. Se borraron: ver el escuadrón, abajo. El de la pistola lo tapó **Dual**, y el de la escopeta, **Muro** y **Racimo**. **Los tres personajes tienen ahora tres propias.**
 
 **Dual es la única que no cambia la bala: cambia el arma.** Desenfundás la
 segunda pistola y se turnan. La recarga se parte al medio —de 0.42 a 0.21— y
@@ -342,7 +361,7 @@ src/
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 ├── config/VfxDefs.js             las 7 explosiones de partículas
 ├── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
-└── tests/                        `npm test` — 201 tests, sin dependencias
+└── tests/                        `npm test` — 217 tests, sin dependencias
 ```
 
 `HUD.js` y `PerformanceMonitor.js` están separados a propósito y no comparten datos: uno es información del **juego**, el otro es **diagnóstico**. En la versión anterior estaban mezclados en overlays superpuestos y no se distinguía cuál era cuál.
@@ -637,7 +656,7 @@ No se escribió un `ObjectPool` genérico como sugería el GDD. Cada sistema tie
 npm test
 ```
 
-**201 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
+**217 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
 
 Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · filtro de habilidades por arma · modificadores del arma · recolección (gema, moneda, corazón, imán) · **mudanza del perfil al renombrar** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
 
