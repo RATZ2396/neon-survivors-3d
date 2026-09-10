@@ -2334,4 +2334,103 @@ describe('El escuadrón: un hitbox, una sola vida', () => {
   })
 })
 
+// ═══════════════════════════════════════════════════════════════════════════
+describe('Dual: la pistola se desdobla', () => {
+  function armar() {
+    const enemies = new EnemyManager(escena)
+    const player = { position: { x: 0, y: 0, z: 0 }, isMoving: false, faceTowards() {}, recoil() {} }
+    const disparos = []
+    const projectiles = { fire: (x, z, dx, dz, def, dmg) => disparos.push({ x, z, dx, dz, dmg }) }
+    const mods = createWeaponMods()
+    const w = new WeaponSystem(player, enemies, projectiles, mods)
+    w.equip('PISTOL')
+    // Un blanco justo en +Z: el ángulo de tiro queda en 0 y las cuentas de
+    // abajo se leen sin trigonometría.
+    enemies.spawn(ENEMY_TYPE.NORMAL, 0, 8)
+    return { w, mods, disparos }
+  }
+
+  function conDual(nivel = 0) {
+    const ctx = armar()
+    const def = SKILL_DEFS.find((d) => d.key === 'PISTOL_DUAL')
+    Object.assign(ctx.mods, def.levels[nivel].mods)
+    return ctx
+  }
+
+  test('cada mano conserva la cadencia de la tabla', () => {
+    const { w, mods } = armar()
+    const unaSola = w.cooldownMult
+    mods.dual = 1
+    // La espera TOTAL se parte al medio, así que dos manos turnándose esperan
+    // cada una lo mismo que esperaba la única de antes.
+    expect(w.cooldownMult).toBeCloseTo(unaSola / 2)
+  })
+
+  test('las manos se turnan: primero la entera, después la fracción', () => {
+    const { w, mods, disparos } = conDual()
+
+    w._fire()
+    w._fire()
+
+    expect(disparos.length).toBe(2)
+    expect(disparos[0].dmg).toBeCloseTo(1)
+    expect(disparos[1].dmg).toBeCloseTo(mods.dualDamage)
+  })
+
+  test('las bocas salen a lados opuestos y las dos apuntan al mismo blanco', () => {
+    const { w, disparos } = conDual()
+
+    w._fire()
+    w._fire()
+
+    const off = CONFIG.COMBAT.DUAL_MUZZLE_OFFSET
+    expect(disparos[0].x).toBeCloseTo(off)
+    expect(disparos[1].x).toBeCloseTo(-off)
+    // Lo que se corre es de dónde sale la bala, no hacia dónde va.
+    expect(disparos[0].dx).toBeCloseTo(disparos[1].dx)
+    expect(disparos[0].dz).toBeCloseTo(disparos[1].dz)
+  })
+
+  test('sin Dual sale de un solo caño y del centro', () => {
+    const { w, disparos } = armar()
+
+    w._fire()
+    w._fire()
+
+    for (const d of disparos) {
+      expect(d.x).toBeCloseTo(0)
+      expect(d.dmg).toBeCloseTo(1)
+    }
+  })
+
+  test('reset vuelve a arrancar por la derecha', () => {
+    const { w, disparos } = conDual()
+
+    w._fire()
+    w._fire()
+    w.reset()
+    disparos.length = 0
+
+    w._fire()
+    expect(disparos[0].dmg).toBeCloseTo(1)
+  })
+
+  test('la izquierda nunca llega al daño entero', () => {
+    const def = SKILL_DEFS.find((d) => d.key === 'PISTOL_DUAL')
+    let previo = 0
+    for (const nivel of def.levels) {
+      const f = nivel.mods.dualDamage
+      expect(f).toBeGreaterThan(previo)
+      expect(f).toBeLessThan(1)
+      previo = f
+    }
+  })
+
+  test('la pistola queda con tres habilidades propias', () => {
+    const propias = SKILL_DEFS.filter((d) => d.weapon === 'PISTOL')
+    expect(propias.length).toBe(3)
+    expect(propias.map((d) => d.key)).toContain('PISTOL_DUAL')
+  })
+})
+
 process.exit(resumen() > 0 ? 1 : 0)

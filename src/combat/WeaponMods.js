@@ -55,6 +55,10 @@ export function createWeaponMods() {
     /** Radio y daño de esa explosión. */
     boomRadius: 0,
     boomDamage: 0,
+    /** 1 = llevás dos pistolas y se turnan para disparar (Dual). */
+    dual: 0,
+    /** Fracción del daño que hace la segunda mano. */
+    dualDamage: 0,
 
     // ── ProjectileManager: qué hace la bala al pegar ────────────────────
     /** Saltos a otro enemigo una vez agotada la penetración. */

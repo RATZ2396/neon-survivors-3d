@@ -204,6 +204,14 @@ export const CONFIG = {
     IMPLIED_SPREAD_DEG: 6,
 
     /**
+     * Separación entre las bocas de las dos pistolas de `Dual`, en unidades.
+     *
+     * No es decorativa: sin ella las dos manos disparan desde el mismo punto y
+     * la habilidad más visible del arma se ve exactamente igual que no tenerla.
+     */
+    DUAL_MUZZLE_OFFSET: 0.22,
+
+    /**
      * Radio de amenaza para la elección de blanco.
      *
      * El arma prefiere al boss, pero NO si tenés basura pegada: dentro de este

@@ -205,6 +205,34 @@ export const SKILL_DEFS = [
     ],
   },
 
+  {
+    key: 'PISTOL_DUAL',
+    weapon: 'PISTOL',
+    name: 'Dual',
+    desc: 'Desenfundás la segunda pistola. Disparan alternadas, al mismo blanco.',
+    kind: SKILL_KIND.WEAPON,
+    color: 0x39d0ff,
+    /**
+     * `dual` parte la recarga entre las manos (ver WeaponSystem.cooldownMult),
+     * así que la derecha conserva EXACTAMENTE la cadencia de la tabla y lo que
+     * se compra es la izquierda. Por eso el único número que sube por nivel es
+     * `dualDamage`.
+     *
+     * Y por eso no llega a 1: contra un mismo blanco, una izquierda al 100%
+     * sería el doble de daño sin ninguna condición, y las otras dos de la
+     * pistola sí la tienen — Rebote necesita multitud y Perforación total
+     * necesita algo que frene balas. Al 80% queda en +45% a +80%, en línea con
+     * `Doble cañón`.
+     */
+    levels: [
+      { mods: { dual: 1, dualDamage: 0.45 } },
+      { mods: { dual: 1, dualDamage: 0.55 } },
+      { mods: { dual: 1, dualDamage: 0.63 } },
+      { mods: { dual: 1, dualDamage: 0.72 } },
+      { mods: { dual: 1, dualDamage: 0.8 } },
+    ],
+  },
+
   // ═══════════════════════════════════════════════════════════════════════
   // ESCOPETA — encima, ancho, empuje
   // ═══════════════════════════════════════════════════════════════════════

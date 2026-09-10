@@ -41,6 +41,7 @@ y son modificadores del arma, no armas nuevas:
 | Rebote | Impacto (empuje) | Calentamiento |
 | ~~Cañón trasero~~ | ~~Abanico trasero~~ | Doble línea |
 | Perforación total | Doble cañón | Bala explosiva |
+| ~~Dual~~ | — | — |
 
 Las dos tachadas **se borraron** al agregar el escuadrón: repetían la andanada
 180° hacia atrás, o sea un tipo disparando por la espalda sin darse vuelta.
@@ -48,7 +49,12 @@ Cubrían el problema real —que la horda te rodea— pero se veían falsas, por
 eran. Ahora eso lo hace un compañero de verdad, que se elige en el mismo menú de
 nivel (ver `player/Squad.js`).
 
-La cuenta quedó en **5 o 6 al alcance por partida** según el personaje (3 de base
+**~~`Dual`~~ — hecha el 2026-09-10.** Es la tercera de la pistola y tapó el
+hueco que había dejado `Cañón trasero`. Cómo funciona y por qué la izquierda no
+llega al 100% está en el README, que es donde va lo que existe. Acá solo queda
+lo que sigue faltando: **la escopeta sigue con dos**.
+
+La cuenta quedó en **7 u 8 al alcance por partida** según el personaje (5 de base
 + 2 o 3 propias), más hasta 2 compañeros, con un techo de 4 habilidades
 equipadas: nunca las tenés todas.
 

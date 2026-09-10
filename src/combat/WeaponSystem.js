@@ -73,6 +73,8 @@ export class WeaponSystem {
     this._burstAngle = 0
     /** Contador para la bala explosiva cada N (Bala explosiva). */
     this._shotIndex = 0
+    /** Qué mano dispara el próximo tiro con Dual: 0 la derecha, 1 la izquierda. */
+    this._hand = 0
 
     /**
      * Los inyecta el GameManager. `progression` guarda los multiplicadores de la
@@ -130,6 +132,7 @@ export class WeaponSystem {
     this._burstLeft = 0
     this._burstTimer = 0
     this._shotIndex = 0
+    this._hand = 0
   }
 
   /** Daño: permanente × mejoras de la partida × quién la lleva. */
@@ -149,7 +152,14 @@ export class WeaponSystem {
   get cooldownMult() {
     const run = this.progression ? this.progression.stats.cooldownMult : 1
     const m = this.mods
-    return this.perm.cooldownMult * run * (1 - m.ramp * this._heat) * m.burstCooldown
+    // Dual reparte la espera entre las manos: con dos, cada una aguanta la
+    // mitad, y por lo tanto CADA UNA conserva la cadencia de la tabla. La
+    // derecha dispara exactamente igual que sin la habilidad; lo que se suma
+    // es la otra. Escrito como 1 + dual y no como 0.5 porque el 0.5 no es un
+    // número de balance: es cuántas manos hay.
+    return (
+      (this.perm.cooldownMult * run * (1 - m.ramp * this._heat) * m.burstCooldown) / (1 + m.dual)
+    )
   }
 
   /** Alcance efectivo del auto-apuntado. */
@@ -302,7 +312,22 @@ export class WeaponSystem {
     if (dist < 0.0001) return false
 
     const baseAngle = Math.atan2(dx / dist, dz / dist)
-    this._shoot(baseAngle)
+
+    // DUAL: las dos pistolas se turnan y van AL MISMO BLANCO. Que compartan
+    // blanco no es una simplificación por vagancia: el torso mira hacia donde
+    // dispara el arma (ver faceTowards, más abajo), así que con dos blancos
+    // distintos habría que elegir a cuál de los dos seguir. Con uno solo esa
+    // pregunta no existe.
+    let scale = 1
+    let lateral = 0
+    if (this.mods.dual > 0) {
+      const izquierda = this._hand === 1
+      scale = izquierda ? this.mods.dualDamage : 1
+      lateral = (izquierda ? -1 : 1) * CONFIG.COMBAT.DUAL_MUZZLE_OFFSET
+      this._hand ^= 1
+    }
+
+    this._shoot(baseAngle, scale, lateral)
     this._sinceShot = 0
 
     // Doble cañón: el resto de la ráfaga queda agendado y sale en update(),
@@ -353,15 +378,19 @@ export class WeaponSystem {
    * trasero`. Se fue: la espalda ahora la cubre un compañero, que es lo que
    * el jugador ya creía estar viendo (ver Squad.js).
    */
-  _shoot(angle) {
-    this._volley(angle)
+  _shoot(angle, scale = 1, lateral = 0) {
+    this._volley(angle, scale, lateral)
   }
 
   /** El abanico del arma disparado hacia `angle`. */
-  _volley(angle) {
+  _volley(angle, scale = 1, lateral = 0) {
     const def = this.def
-    const px = this.player.position.x
-    const pz = this.player.position.z
+    // La boca del arma corrida al costado (Dual: una mano de cada lado). Es de
+    // dónde SALE la bala, no hacia dónde va: las dos siguen apuntando igual.
+    // La perpendicular a (sin, cos) es (cos, -sin) — la misma cuenta que usa
+    // el desplazamiento de las balas paralelas, más abajo.
+    const px = this.player.position.x + Math.cos(angle) * lateral
+    const pz = this.player.position.z - Math.sin(angle) * lateral
     const count = this.shotCount
 
     // Un arma recta a la que una mejora le sumó balas necesita algo de abanico
@@ -373,7 +402,7 @@ export class WeaponSystem {
     const step = count > 1 ? spread / (count - 1) : 0
     const start = count > 1 ? -spread / 2 : 0
 
-    const dmg = this.damageMult
+    const dmg = this.damageMult * scale
     const m = this.mods
 
     for (let k = 0; k < count; k++) {

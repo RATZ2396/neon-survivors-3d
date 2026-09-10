@@ -32,9 +32,9 @@ Son dos progresiones distintas y no se mezclan:
 
 | | Arma base | Habilidades |
 |---|---|---|
-| Cuáles | pistola · escopeta · metralleta | 3 de base + 3 propias del arma |
+| Cuáles | pistola · escopeta · metralleta | 5 de base + 2 o 3 propias del arma |
 | Cuándo se elige | **antes** de la partida, en la pantalla de inicio | **durante** la partida, al subir de nivel |
-| Cuántas por partida | una sola, no cambia | 6 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
+| Cuántas por partida | una sola, no cambia | 7 u 8 al alcance, **hasta 4** equipadas, subibles a nivel 5 |
 | Cómo se mejoran | **fuera** de la partida, en el taller, con la moneda ganada | **dentro** de la partida, con la XP de las gemas |
 | Se pierden al morir | no, son permanentes | sí, se empieza de cero |
 | Dónde se editan | `config/WeaponDefs.js` y `config/MetaDefs.js` | `config/SkillDefs.js` |
@@ -45,10 +45,10 @@ El arma define **cómo se juega toda la partida**; las habilidades definen **en 
 
 No hay arsenal: el arma elegida es la única de la partida. La profundidad sale de las habilidades, y por eso hay **dos familias**:
 
-- **Base compartida (3).** Las ve cualquier personaje: escudo orbital, rayo y onda expansiva.
-- **Propias del arma (3 por arma).** Solo aparecen en el menú de nivel si estás jugando con esa arma. La diferencia en la tabla es una sola clave: `weapon: 'SHOTGUN'`.
+- **Base compartida (5).** Las ve cualquier personaje: sierras, rayo, escarcha, señuelo y guadaña.
+- **Propias del arma (2 o 3 por arma).** Solo aparecen en el menú de nivel si estás jugando con esa arma. La diferencia en la tabla es una sola clave: `weapon: 'SHOTGUN'`.
 
-Con 6 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
+Con 7 u 8 al alcance y un techo de 4 equipadas, **nunca las tenés todas**: elegir sigue costando algo.
 
 Hubo una cuarta de base, el **Dron** —acompañantes que disparaban solos—, y se sacó justamente por la regla de arriba: un acompañante que dispara por su cuenta es una segunda arma con otro nombre.
 
@@ -111,6 +111,7 @@ El laboratorio muestra **todas**, incluidas las de armas que no tenés equipadas
 |---|---|---|
 | Pistola | **Rebote** | agotada la penetración, la bala salta al siguiente (hasta 3 saltos) |
 | Pistola | **Perforación total** | atraviesa a los que frenan balas — tanque y boss |
+| Pistola | **Dual** | dos pistolas alternadas al mismo blanco: media recarga, la izquierda al 45-80% |
 | Escopeta | **Impacto** | cada perdigón empuja; un disparo de cerca abre un pasillo |
 | Escopeta | **Doble cañón** | ráfaga de 2-3 andanadas y después recarga más lenta |
 | Metralleta | **Calentamiento** | disparando seguido, la recarga baja hasta -42% |
@@ -131,7 +132,25 @@ esa es la decisión que las hace correctas: el swap-remove mueve los índices en
 cuanto muere cualquiera, así que una marca por enemigo terminaría frenando o
 desviando al que ocupó el hueco. Una zona no puede equivocarse de enemigo.
 
-La pistola y la escopeta tenían una tercera —**Cañón trasero** y **Abanico trasero**— que repetía la andanada 180° hacia atrás. Se borraron: ver el escuadrón, abajo.
+La pistola y la escopeta tenían una tercera —**Cañón trasero** y **Abanico trasero**— que repetía la andanada 180° hacia atrás. Se borraron: ver el escuadrón, abajo. El hueco de la pistola lo tapó **Dual**; **el de la escopeta sigue abierto**.
+
+**Dual es la única que no cambia la bala: cambia el arma.** Desenfundás la
+segunda pistola y se turnan. La recarga se parte al medio —de 0.42 a 0.21— y
+cada gatillazo sale de una mano distinta, así que **cada mano conserva exacta la
+cadencia de la tabla**: la derecha dispara igual que sin la habilidad, y lo que
+se compra es la izquierda, que pega entre el 45% y el 80% según el nivel.
+
+Que no llegue al 100% no es timidez. Las dos pistolas van **al mismo blanco**,
+así que una izquierda entera sería el doble de daño sin ninguna condición — y
+las otras dos de la pistola sí la tienen: Rebote necesita multitud y Perforación
+total necesita algo que frene balas.
+
+Y que compartan blanco tampoco es pereza. El torso mira hacia donde dispara el
+arma (ver "Verificación de la Parte B"), así que con dos blancos distintos habría
+que elegir a cuál de los dos seguir. Con uno solo esa pregunta no existe. Lo
+único que se separa son las bocas, ±0.22 unidades: sin eso las dos manos
+disparan desde el mismo punto y la habilidad más visible del arma se ve
+exactamente igual que no tenerla.
 
 ## El escuadrón
 
@@ -323,7 +342,7 @@ src/
 ├── config/SoundDefs.js           los 16 sonidos, sintetizados (sin archivos)
 ├── config/VfxDefs.js             las 7 explosiones de partículas
 ├── perf/PerformanceMonitor.js    panel de diagnóstico técnico (solo dev)
-└── tests/                        `npm test` — 141 tests, sin dependencias
+└── tests/                        `npm test` — 201 tests, sin dependencias
 ```
 
 `HUD.js` y `PerformanceMonitor.js` están separados a propósito y no comparten datos: uno es información del **juego**, el otro es **diagnóstico**. En la versión anterior estaban mezclados en overlays superpuestos y no se distinguía cuál era cuál.
@@ -618,7 +637,7 @@ No se escribió un `ObjectPool` genérico como sugería el GDD. Cada sistema tie
 npm test
 ```
 
-**141 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
+**201 tests, todos pasan, sin una sola dependencia.** El proyecto anterior tenía un `TestFramework.js` de 291 líneas que no corría en ningún lado: el problema nunca fue el framework, fue que no había un botón. El corredor nuevo son 120 líneas.
 
 Qué cubren: progresión y curva de XP · perfil guardado (incluidos **11 casos de `localStorage` corrupto**) · mejoras permanentes · rejilla espacial · `EnemyManager` · oleadas · mazo de mejoras · habilidades · filtro de habilidades por arma · modificadores del arma · recolección (gema, moneda, corazón, imán) · **mudanza del perfil al renombrar** · política de voces del audio · pool de partículas · deducción de `FrameEvents` · sanidad de todas las tablas de datos.
 
