@@ -1,6 +1,7 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { buildSoldierAtlas, CAMO, NYLON } from './SoldierAtlas.js'
+import { getWeaponModel, DEFAULT_WEAPON } from '../art/WeaponModels.js'
 
 /**
  * SoldierModel — soldado de infantería procedural para el jugador (Parte B).
@@ -46,16 +47,43 @@ const RIG = {
   foreArm: 0.3,
 }
 
-/** Puntos de agarre del fusil, en espacio del arma. */
-const GRIP_RIGHT = new THREE.Vector3(0.0, -0.085, 0.105)
-const GRIP_LEFT = new THREE.Vector3(0.0, -0.05, -0.235)
-const MUZZLE = new THREE.Vector3(0, 0.012, -0.56)
+/**
+ * El arma NO está definida acá.
+ *
+ * Cada una trae sus propios puntos de agarre, su boca de cañón, su pose de
+ * porte y su retroceso (ver `art/WeaponModels.js`), y `setWeapon()` los copia
+ * a este modelo. El cuerpo no sabe qué arma lleva: sabe dónde tiene que poner
+ * las manos, y eso se lo dicta el arma.
+ *
+ * Es lo que permite que la pistola quede con los brazos estirados al frente y
+ * la escopeta encarada al hombro sin escribir una sola rotación de codo: la IK
+ * resuelve las dos poses a partir de cuatro puntos distintos.
+ */
 
-/** Pose de porte del arma en espacio del torso (low ready). */
-const WEAPON_REST = {
-  position: new THREE.Vector3(-0.03, 0.3, -0.22),
-  rotation: new THREE.Euler(0.16, -0.34, 0.12),
-}
+/**
+ * Hacia dónde apunta cada codo cuando las dos manos van al MISMO arma.
+ *
+ * Es el único dato que el triángulo del brazo no fija: con hombro, mano y
+ * largo de los dos huesos hay infinitas soluciones girando alrededor de la
+ * línea hombro-mano, y este vector elige cuál. El de disparo saca el codo
+ * atrás y afuera; el de apoyo lo mete casi debajo del arma.
+ */
+const POLE_MAIN = new THREE.Vector3(-0.55, -0.62, 0.56).normalize()
+const POLE_SUPPORT = new THREE.Vector3(0.42, -0.86, 0.28).normalize()
+
+/**
+ * Cuánto se separa del centro cada boca de cañón con `Dual`, en unidades de
+ * JUEGO (no en metros del modelo: acá se convierte con la escala del soldado).
+ *
+ * Tiene que coincidir con `CONFIG.COMBAT.DUAL_MUZZLE_OFFSET`, que es donde el
+ * arma hace nacer las balas. Si los dos números se separan, la bala sale de un
+ * punto y el caño se ve en otro — y eso, con la cámara casi cenital de este
+ * juego, se nota.
+ *
+ * Lo correcto a futuro es al revés: que el arma pregunte `getMuzzlePosition()`
+ * y este número quede como único dueño de dónde está el caño.
+ */
+const DUAL_MUZZLE_OFFSET = 0.22
 
 const DOWN = new THREE.Vector3(0, -1, 0)
 const TAU = Math.PI * 2
@@ -253,6 +281,12 @@ export class SoldierModel {
    */
   constructor(options = {}) {
     const height = options.height ?? REF_HEIGHT
+    /**
+     * De metros del modelo a unidades de juego. Se guarda porque hay medidas
+     * que llegan en unidades de juego (ver DUAL_MUZZLE_OFFSET) y hay que
+     * traerlas a la escala interna antes de usarlas.
+     */
+    this._scale = height / REF_HEIGHT
     this.atlas = options.atlas ?? buildSoldierAtlas()
 
     this.material = new THREE.MeshStandardMaterial({
@@ -275,9 +309,22 @@ export class SoldierModel {
     this._buildSkeleton()
     this._buildGeometry()
 
+    /** Arma actual: la fija setWeapon(), y de ella salen agarres y retroceso. */
+    this._weapon = null
+    /** Pose de porte de cada mano. Copias propias, no las del arma cacheada. */
+    this._restR = { position: new THREE.Vector3(), rotation: new THREE.Euler() }
+    this._restL = { position: new THREE.Vector3(), rotation: new THREE.Euler() }
+    this._dual = false
+    /** Con Dual, qué mano disparó último: alterna en cada recoil(). */
+    this._dualSide = 0
+    /** Ciclo de la corredera de la escopeta, 0 = cerrada. */
+    this._pump = 0
+
+    this.setWeapon(options.weapon ?? DEFAULT_WEAPON)
+
     if (options.contactShadow !== false) this._buildContactShadow()
 
-    this.root.scale.setScalar(height / REF_HEIGHT)
+    this.root.scale.setScalar(this._scale)
 
     // Estado de animación.
     this._time = 0
@@ -337,9 +384,17 @@ export class SoldierModel {
     this.torso = node('torso', 0, 0, 0, this.hips)
     this.head = node('head', 0, RIG.neckY - RIG.hipY, 0, this.torso)
 
+    /**
+     * DOS nodos de arma, no uno.
+     *
+     * El segundo existe apagado casi siempre: solo lo enciende `Dual`. Tenerlo
+     * creado desde el arranque evita armar un mesh en mitad de una partida,
+     * justo cuando te están correteando — el mismo criterio por el que los
+     * compañeros se construyen al empezar y esperan invisibles (ver Squad.js).
+     */
     this.weapon = node('weapon', 0, 0, 0, this.torso)
-    this.weapon.position.copy(WEAPON_REST.position)
-    this.weapon.rotation.copy(WEAPON_REST.rotation)
+    this.weaponL = node('weaponL', 0, 0, 0, this.torso)
+    this.weaponL.visible = false
 
     const shoulderY = RIG.shoulderY - RIG.hipY
     this.armL = node('armL', RIG.shoulderX, shoulderY, 0, this.torso)
@@ -354,23 +409,28 @@ export class SoldierModel {
     this.kneeR = node('kneeR', 0, -RIG.thigh, 0, this.thighR)
     this.ankleR = node('ankleR', 0, -RIG.shin, 0, this.kneeR)
 
-    // Brazos: la mano se pega al fusil por IK de dos huesos, no por pose fija.
+    // Brazos: la mano se pega al arma por IK de dos huesos, no por pose fija.
     // Así, cuando el arma se mueve (retroceso, balanceo), las manos la siguen.
+    //
+    // `node` es de qué arma cuelga cada mano y `grip` en qué punto de ella
+    // agarra: los dos los reescribe setWeapon(), y son lo único que hay que
+    // cambiar para que el cuerpo pase de sostener una escopeta a sostener dos
+    // pistolas.
     this._arms = [
       {
         upper: this.armR,
         fore: this.foreR,
-        grip: GRIP_RIGHT,
-        // Codo del brazo de disparo: atrás, abajo y hacia afuera.
-        pole: new THREE.Vector3(-0.55, -0.62, 0.56).normalize(),
+        node: this.weapon,
+        grip: new THREE.Vector3(),
+        pole: POLE_MAIN.clone(),
         target: new THREE.Vector3(),
       },
       {
         upper: this.armL,
         fore: this.foreL,
-        grip: GRIP_LEFT,
-        // Codo del brazo de apoyo: casi debajo del arma.
-        pole: new THREE.Vector3(0.42, -0.86, 0.28).normalize(),
+        node: this.weapon,
+        grip: new THREE.Vector3(),
+        pole: POLE_SUPPORT.clone(),
         target: new THREE.Vector3(),
       },
     ]
@@ -391,7 +451,20 @@ export class SoldierModel {
     mount(this._buildHips(S), this.hips)
     mount(this._buildTorso(S), this.torso)
     mount(this._buildHead(S), this.head)
-    mount(this._buildRifle(S), this.weapon)
+
+    // Las dos armas son meshes vacíos: la geometría se la pone setWeapon() y
+    // está CACHEADA en WeaponModels, así que el jugador y los dos compañeros
+    // comparten la misma sin volver a construirla.
+    this._weaponMesh = new THREE.Mesh(undefined, this.material)
+    this._weaponMesh.name = 'weaponMesh'
+    this.weapon.add(this._weaponMesh)
+    this._weaponMeshL = new THREE.Mesh(undefined, this.material)
+    this._weaponMeshL.name = 'weaponMeshL'
+    this.weaponL.add(this._weaponMeshL)
+
+    // La pistola enfundada en el muslo derecho, en su propio mesh.
+    this._holsterPistol = this._buildHolsterPistol(S).mesh(this.material)
+    this.thighR.add(this._holsterPistol)
 
     for (const side of [1, -1]) {
       const arm = side > 0 ? this.armL : this.armR
@@ -677,10 +750,10 @@ export class SoldierModel {
       holster.rotateY(-0.1)
       holster.translate(-0.095, -0.29, 0.01)
       p.add(flat(holster, S.polymer))
-      const pistol = box(0.032, 0.075, 0.045, 0.01)
-      pistol.rotateX(0.25)
-      pistol.translate(-0.095, -0.2, 0.035)
-      p.add(flat(pistol, S.gunmetal))
+      // La pistola que va ADENTRO de la pistolera no se suelda acá: es su
+      // propio mesh (ver _buildHolsterPistol) para poder desaparecerla cuando
+      // el jugador la desenfunda con `Dual`. Si estuviera fundida en la
+      // pierna, al activar la habilidad habría tres pistolas en pantalla.
       const legStrap = box(0.09, 0.025, 0.13, 0.006)
       legStrap.translate(-0.075, -0.36, 0.005)
       p.add(flat(legStrap, S.webbing))
@@ -731,83 +804,21 @@ export class SoldierModel {
     return p
   }
 
-  _buildRifle(S) {
-    const p = new Part('rifle')
+  /**
+   * La pistola guardada en la pistolera del muslo derecho.
+   *
+   * Va en su propio mesh —un draw call -- porque `Dual` la DESENFUNDA: la
+   * segunda pistola que aparece en la mano izquierda es esta, no uno de la
+   * nada. Es un detalle chico y es la diferencia entre una habilidad que se
+   * entiende sola y una que hay que leer en el menú.
+   */
+  _buildHolsterPistol(S) {
+    const p = new Part('holsterPistol')
 
-    // Carabina de asalto, cañón hacia -Z. Medidas de un arma real de ~84 cm.
-    const receiver = box(0.05, 0.075, 0.29, 0.012)
-    receiver.translate(0, 0, 0.02)
-    p.add(flat(receiver, S.gunmetal))
-
-    const rail = box(0.028, 0.014, 0.36, 0.004)
-    rail.translate(0, 0.045, -0.06)
-    p.add(flat(rail, S.gunmetal))
-
-    const handguard = cyl(0.032, 0.032, 0.26, 8)
-    handguard.rotateX(Math.PI / 2)
-    handguard.translate(0, -0.004, -0.26)
-    p.add(flat(handguard, S.polymer))
-
-    const barrel = cyl(0.0095, 0.011, 0.2, 8)
-    barrel.rotateX(Math.PI / 2)
-    barrel.translate(0, 0.012, -0.45)
-    p.add(flat(barrel, S.gunmetal))
-
-    const muzzle = cyl(0.015, 0.014, 0.06, 8)
-    muzzle.rotateX(Math.PI / 2)
-    muzzle.translate(0, 0.012, -0.55)
-    p.add(flat(muzzle, S.steel))
-
-    const grip = box(0.035, 0.11, 0.05, 0.012)
-    grip.rotateX(0.32)
-    grip.translate(0, -0.085, 0.115)
-    p.add(flat(grip, S.polymer))
-
-    const trigger = box(0.02, 0.035, 0.035, 0.008)
-    trigger.translate(0, -0.045, 0.06)
-    p.add(flat(trigger, S.gunmetal))
-
-    // Cargador curvo: dos tramos con ángulos distintos aproximan la curva.
-    const magTop = box(0.03, 0.1, 0.06, 0.008)
-    magTop.rotateX(-0.08)
-    magTop.translate(0, -0.09, -0.015)
-    p.add(flat(magTop, S.polymer))
-    const magBottom = box(0.03, 0.11, 0.058, 0.008)
-    magBottom.rotateX(-0.28)
-    magBottom.translate(0, -0.185, 0.008)
-    p.add(flat(magBottom, S.polymer))
-
-    const tube = cyl(0.019, 0.019, 0.17, 8)
-    tube.rotateX(Math.PI / 2)
-    tube.translate(0, 0.012, 0.24)
-    p.add(flat(tube, S.gunmetal))
-
-    const stock = box(0.05, 0.075, 0.16, 0.018)
-    stock.translate(0, -0.005, 0.27)
-    p.add(flat(stock, S.polymer))
-
-    const butt = box(0.055, 0.1, 0.03, 0.012)
-    butt.translate(0, -0.012, 0.345)
-    p.add(flat(butt, S.rubber))
-
-    // Óptica de punto rojo sobre el riel.
-    const opticBody = box(0.04, 0.05, 0.11, 0.012)
-    opticBody.translate(0, 0.078, -0.05)
-    p.add(flat(opticBody, S.gunmetal))
-    const lens = cyl(0.019, 0.019, 0.012, 10)
-    lens.rotateX(Math.PI / 2)
-    lens.translate(0, 0.082, -0.107)
-    p.add(flat(lens, S.optic))
-
-    // Empuñadura vertical y linterna en el guardamanos.
-    const foregrip = box(0.03, 0.07, 0.032, 0.01)
-    foregrip.rotateX(-0.12)
-    foregrip.translate(0, -0.055, -0.3)
-    p.add(flat(foregrip, S.polymer))
-    const light = cyl(0.015, 0.015, 0.09, 8)
-    light.rotateX(Math.PI / 2)
-    light.translate(0.042, -0.005, -0.33)
-    p.add(flat(light, S.gunmetal))
+    const grip = box(0.032, 0.075, 0.045, 0.01)
+    grip.rotateX(0.25)
+    grip.translate(-0.095, -0.2, 0.035)
+    p.add(flat(grip, S.gunmetal))
 
     return p
   }
@@ -886,23 +897,40 @@ export class SoldierModel {
     this.head.rotation.x = -this.torso.rotation.x * 0.75 + Math.sin(p * 2) * 0.02 * amp
 
     // Arma: balanceo con el paso + retroceso decreciente.
-    this._recoil = Math.max(0, this._recoil - delta * 6)
+    //
+    // La velocidad a la que se apaga el retroceso sale del arma: la escopeta
+    // tarda casi tres veces más que la metralleta en volver a su sitio, y esa
+    // diferencia es la mitad de lo que separa a un arma pesada de una liviana.
+    const perfil = this._weapon.recoil
+    this._recoil = Math.max(0, this._recoil - delta * perfil.decay)
     const rec = this._recoil * this._recoil
-    this.weapon.position.set(
-      WEAPON_REST.position.x + cosP * 0.006 * amp,
-      WEAPON_REST.position.y + Math.sin(p * 2) * 0.012 * amp + Math.sin(this._time * 1.7) * 0.004 * (1 - amp),
-      WEAPON_REST.position.z + rec * 0.05,
-    )
-    this.weapon.rotation.set(
-      WEAPON_REST.rotation.x - rec * 0.3,
-      WEAPON_REST.rotation.y + sinP * 0.03 * amp,
-      WEAPON_REST.rotation.z + cosP * 0.04 * amp,
-    )
+
+    // Con Dual patea solo la pistola que disparó; con un arma sola, esa es
+    // siempre la derecha.
+    const recR = this._dual && this._dualSide === 1 ? 0 : rec
+    const recL = this._dual && this._dualSide === 0 ? 0 : rec
+
+    const swayY = Math.sin(p * 2) * 0.012 * amp + Math.sin(this._time * 1.7) * 0.004 * (1 - amp)
+    this._poseWeapon(this.weapon, this._restR, perfil, recR, cosP, sinP, amp, swayY)
+    if (this._dual) {
+      // La segunda pistola respira en contrafase: dos armas moviéndose igual
+      // se ven como un solo objeto partido al medio.
+      this._poseWeapon(this.weaponL, this._restL, perfil, recL, -cosP, -sinP, amp, -swayY)
+    }
+
+    // Corredera de la escopeta: sale con el disparo y vuelve. Es el único
+    // movimiento mecánico visible del juego.
+    if (this._weapon.pump) {
+      this._pump = Math.max(0, this._pump - delta / this._weapon.pump.time)
+      // Ida y vuelta en un solo ciclo: seno de media vuelta.
+      this._weaponMesh.position.z = Math.sin(this._pump * Math.PI) * this._weapon.pump.travel
+    }
 
     // Las manos siguen al arma, no al revés.
     this.weapon.updateMatrix()
+    if (this._dual) this.weaponL.updateMatrix()
     for (const arm of this._arms) {
-      arm.target.copy(arm.grip).applyMatrix4(this.weapon.matrix)
+      arm.target.copy(arm.grip).applyMatrix4(arm.node.matrix)
       this._solveArm(arm)
     }
 
@@ -970,7 +998,133 @@ export class SoldierModel {
     arm.fore.quaternion.copy(s.qa).invert().multiply(s.qb)
   }
 
-  /** Destello rojo mientras el jugador es invulnerable tras un golpe. */
+  /**
+   * Le pone un arma al soldado.
+   *
+   * Es lo ÚNICO que hay que llamar para que el personaje de la escopeta deje
+   * de llevar el fusil de asalto genérico que llevaban los tres. La geometría
+   * está cacheada en WeaponModels y compartida entre el jugador y los dos
+   * compañeros: cambiar de arma no construye nada.
+   *
+   * @param {string} key clave de WEAPON_DEFS ('PISTOL' | 'SHOTGUN' | 'SMG')
+   */
+  setWeapon(key) {
+    const model = getWeaponModel(key, this.atlas.swatch) ?? getWeaponModel(DEFAULT_WEAPON, this.atlas.swatch)
+    this._weapon = model
+    this._weaponKey = key
+
+    this._weaponMesh.geometry = model.geometry
+    this._weaponMeshL.geometry = model.geometry
+    this._weaponMesh.position.z = 0
+    this._pump = 0
+
+    // Un arma nueva llega sin habilidades puestas: Dual es de la pistola y se
+    // vuelve a activar desde afuera si corresponde.
+    this._dual = false
+    this._dualSide = 1
+    this._applyGrips()
+  }
+
+  /**
+   * Enciende o apaga la segunda pistola (habilidad `Dual`).
+   *
+   * La mecánica ya existe y está testeada del lado del arma: dos disparos
+   * alternados al mismo blanco. Esto es su cuerpo — hasta ahora el muñeco
+   * seguía agarrando un solo fusil con las dos manos.
+   *
+   * Devuelve false si el arma actual no tiene pose dual (o sea, cualquiera que
+   * no sea la pistola), así quien lo llama puede darse cuenta.
+   */
+  setDual(active) {
+    const on = Boolean(active) && Boolean(this._weapon.dual)
+    if (on !== this._dual) {
+      this._dual = on
+      this._dualSide = 1
+      this._applyGrips()
+    }
+    return on === Boolean(active)
+  }
+
+  /** ¿Qué arma lleva puesta? La usa la página de pruebas. */
+  get weaponKey() {
+    return this._weaponKey
+  }
+
+  /**
+   * Reparte las manos entre las armas.
+   *
+   * Con un arma: la derecha en la empuñadura, la izquierda en el guardamanos,
+   * las dos sobre el mismo objeto. Con Dual: cada mano en la empuñadura de SU
+   * pistola, los codos abiertos hacia afuera, y la pistolera del muslo vacía
+   * porque esa pistola ahora está en la mano.
+   */
+  _applyGrips() {
+    const w = this._weapon
+    const arms = this._arms
+
+    // Las poses de reposo se COPIAN, no se referencian: el objeto del arma
+    // está cacheado y compartido entre el jugador y los compañeros, así que
+    // escribir en él le movería el arma a los demás.
+    if (this._dual) {
+      this._restR.position.copy(w.dual.right.position)
+      this._restR.rotation.copy(w.dual.right.rotation)
+      this._restL.position.copy(w.dual.left.position)
+      this._restL.rotation.copy(w.dual.left.rotation)
+
+      // Cada caño exactamente donde el arma hace nacer sus balas.
+      const off = DUAL_MUZZLE_OFFSET / this._scale
+      this._restR.position.x = -off
+      this._restL.position.x = off
+
+      this.weaponL.visible = true
+      this._holsterPistol.visible = false
+
+      arms[0].node = this.weapon
+      arms[0].grip.copy(w.gripRight)
+      arms[0].pole.copy(w.dual.poleRight).normalize()
+
+      arms[1].node = this.weaponL
+      arms[1].grip.copy(w.gripRight)
+      arms[1].pole.copy(w.dual.poleLeft).normalize()
+      return
+    }
+
+    this._restR.position.copy(w.rest.position)
+    this._restR.rotation.copy(w.rest.rotation)
+    this._restL.position.copy(w.rest.position)
+    this._restL.rotation.copy(w.rest.rotation)
+
+    this.weaponL.visible = false
+    this._holsterPistol.visible = true
+
+    arms[0].node = this.weapon
+    arms[0].grip.copy(w.gripRight)
+    arms[0].pole.copy(POLE_MAIN)
+
+    arms[1].node = this.weapon
+    arms[1].grip.copy(w.gripLeft)
+    arms[1].pole.copy(POLE_SUPPORT)
+  }
+
+  /**
+   * Pone un arma en su sitio: pose de porte + balanceo del paso + retroceso.
+   *
+   * El retroceso empuja hacia atrás (`kick`, en metros) y levanta la boca
+   * (`rise`, en radianes). Los dos números son del arma, no del cuerpo.
+   */
+  _poseWeapon(node, rest, perfil, rec, cosP, sinP, amp, swayY) {
+    node.position.set(
+      rest.position.x + cosP * 0.006 * amp,
+      rest.position.y + swayY,
+      rest.position.z + rec * perfil.kick,
+    )
+    node.rotation.set(
+      rest.rotation.x - rec * perfil.rise,
+      rest.rotation.y + sinP * 0.03 * amp,
+      rest.rotation.z + cosP * 0.04 * amp,
+    )
+  }
+
   /**
    * Gira el torso (con los brazos, el arma y la cabeza) hacia el blanco.
    *
@@ -981,6 +1135,7 @@ export class SoldierModel {
     this._aimTwist = rad
   }
 
+  /** Destello rojo mientras el jugador es invulnerable tras un golpe. */
   setHit(active) {
     if (active === this._hit) return
     this._hit = active
@@ -988,14 +1143,27 @@ export class SoldierModel {
     this.material.emissiveIntensity = active ? 0.75 : 0
   }
 
-  /** Patada del arma. La llama WeaponSystem al disparar (Parte D). */
+  /**
+   * Patada del arma. La llama WeaponSystem al disparar (Parte D).
+   *
+   * Con Dual alterna de mano en cada tiro, que es exactamente lo que hace la
+   * mecánica: la recarga está partida entre las dos pistolas y cada gatillazo
+   * sale de una distinta. Acá eso se ve — patea una y después la otra.
+   */
   recoil(strength = 1) {
+    if (this._dual) this._dualSide = this._dualSide === 0 ? 1 : 0
     this._recoil = Math.min(1, this._recoil + strength)
+    // La corredera de la escopeta arranca su ciclo con el disparo.
+    if (this._weapon.pump) this._pump = 1
   }
 
-  /** Boca del cañón en coordenadas de mundo, para el fogonazo y el spawn de balas. */
+  /**
+   * Boca del cañón en coordenadas de mundo, para el fogonazo y el spawn de
+   * balas. Con Dual devuelve la de la pistola que acaba de disparar.
+   */
   getMuzzlePosition(target) {
-    return target.copy(MUZZLE).applyMatrix4(this.weapon.matrixWorld)
+    const node = this._dual && this._dualSide === 1 ? this.weaponL : this.weapon
+    return target.copy(this._weapon.muzzle).applyMatrix4(node.matrixWorld)
   }
 
   /** Vuelve a la pose de reposo sin reconstruir nada. */
@@ -1004,12 +1172,18 @@ export class SoldierModel {
     this._gait = 0
     this._recoil = 0
     this._aimTwist = 0
+    this._pump = 0
+    this._dualSide = 1
     this.setHit(false)
     this.update(0, 0, false)
   }
 
   dispose() {
     this.root.traverse((o) => {
+      // Las armas NO se sueltan acá: su geometría está cacheada y compartida
+      // con los otros soldados (ver WeaponModels). Soltarla dejaría al
+      // compañero de al lado con las manos vacías.
+      if (o === this._weaponMesh || o === this._weaponMeshL) return
       if (o.isMesh) o.geometry.dispose()
     })
     this.material.dispose()

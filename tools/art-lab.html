@@ -1,0 +1,370 @@
+<!doctype html>
+<html lang="es">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RTZBLOOD · Banco de modelos</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background: #0d1117;
+      color: #cfe6f5;
+      font-family: ui-monospace, 'Cascadia Code', Consolas, monospace;
+    }
+
+    canvas { display: block; }
+
+    #panel {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 10;
+      width: 246px;
+      padding: 12px 14px;
+      background: rgba(13, 17, 23, 0.88);
+      border: 1px solid rgba(57, 208, 255, 0.35);
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    #panel h1 {
+      font-size: 12px;
+      letter-spacing: 2px;
+      color: #39d0ff;
+      margin-bottom: 8px;
+    }
+
+    .row { display: flex; gap: 6px; margin: 6px 0; flex-wrap: wrap; }
+
+    button {
+      flex: 1;
+      min-width: 62px;
+      padding: 5px 6px;
+      background: #161d27;
+      color: #cfe6f5;
+      border: 1px solid #2f3f52;
+      border-radius: 4px;
+      font: inherit;
+      font-size: 11px;
+      cursor: pointer;
+    }
+
+    button:hover { border-color: #39d0ff; }
+    button.on { background: #39d0ff; color: #0d1117; border-color: #39d0ff; }
+
+    label { display: block; margin-top: 8px; color: #7f9bb3; font-size: 11px; }
+    input[type=range] { width: 100%; }
+
+    #stats {
+      margin-top: 10px;
+      padding-top: 8px;
+      border-top: 1px solid #2f3f52;
+      white-space: pre;
+      color: #8bffb0;
+      font-size: 11px;
+    }
+
+    #hint {
+      position: fixed;
+      bottom: 12px;
+      left: 12px;
+      z-index: 10;
+      font-size: 11px;
+      color: #55708a;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="app"></div>
+
+  <div id="panel">
+    <h1>BANCO DE MODELOS</h1>
+
+    <label>Cámara</label>
+    <div class="row">
+      <button data-cam="game" class="on">Juego</button>
+      <button data-cam="close">Cerca</button>
+      <button data-cam="top">Cenital</button>
+    </div>
+
+    <label>Movimiento</label>
+    <div class="row">
+      <button data-move="0">Quieto</button>
+      <button data-move="3">Camina</button>
+      <button data-move="6" class="on">Corre</button>
+    </div>
+
+    <label>Acción</label>
+    <div class="row">
+      <button id="fire">Disparar</button>
+      <button id="auto" class="on">Auto</button>
+    </div>
+
+    <div class="row">
+      <button id="dual">Dual</button>
+      <button id="hit">Golpe</button>
+    </div>
+
+    <label>Giro <span id="spinval">0.35</span></label>
+    <input type="range" id="spin" min="0" max="1.5" step="0.05" value="0.35" />
+
+    <label>Apuntado <span id="aimval">0</span>°</label>
+    <input type="range" id="aim" min="-70" max="70" step="1" value="0" />
+
+    <div id="stats"></div>
+  </div>
+
+  <div id="hint">Los tres personajes comparten UN atlas y la geometría de cada arma. Rueda = zoom.</div>
+
+  <script type="module">
+    import * as THREE from 'three'
+    import { SoldierModel } from '../src/player/SoldierModel.js'
+    import { buildSoldierAtlas } from '../src/player/SoldierAtlas.js'
+
+    // Mismos valores que CONFIG.WORLD / CONFIG.CAMERA del juego: si el banco
+    // de pruebas ilumina distinto, lo que se aprueba acá no es lo que se ve
+    // en la partida.
+    const FOG_COLOR = 0x0d1117
+    const GROUND_COLOR = 0x1b2430
+    const GRID_COLOR = 0x2f3f52
+    const PLAYER_HEIGHT = 1.6
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true })
+    renderer.setSize(innerWidth, innerHeight)
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2))
+    renderer.info.autoReset = false
+    document.getElementById('app').appendChild(renderer.domElement)
+
+    const scene = new THREE.Scene()
+    scene.background = new THREE.Color(FOG_COLOR)
+    scene.fog = new THREE.Fog(FOG_COLOR, 35, 95)
+
+    scene.add(new THREE.HemisphereLight(0x9fd4ff, 0x20262f, 0.9))
+    const key = new THREE.DirectionalLight(0xffffff, 1.4)
+    key.position.set(12, 20, 8)
+    scene.add(key)
+
+    const ground = new THREE.Mesh(
+      new THREE.PlaneGeometry(120, 120),
+      new THREE.MeshStandardMaterial({ color: GROUND_COLOR, roughness: 0.95 }),
+    )
+    ground.rotation.x = -Math.PI / 2
+    scene.add(ground)
+
+    const grid = new THREE.GridHelper(120, 60, GRID_COLOR, GRID_COLOR)
+    grid.position.y = 0.01
+    grid.material.transparent = true
+    grid.material.opacity = 0.35
+    scene.add(grid)
+
+    const camera = new THREE.PerspectiveCamera(55, innerWidth / innerHeight, 0.1, 300)
+
+    // UN atlas para los tres, igual que en el escuadrón: generar el canvas es
+    // lo caro de un soldado, la geometría no.
+    const atlas = buildSoldierAtlas()
+
+    const ARMAS = [
+      { key: 'PISTOL', name: 'Pistola', color: 0x39d0ff },
+      { key: 'SHOTGUN', name: 'Escopeta', color: 0xffd166 },
+      { key: 'SMG', name: 'Metralleta', color: 0x8bffb0 },
+    ]
+
+    const soldados = ARMAS.map((arma, i) => {
+      const pivot = new THREE.Group()
+      pivot.position.x = (i - 1) * 2.2
+      scene.add(pivot)
+
+      const model = new SoldierModel({ height: PLAYER_HEIGHT, atlas })
+      model.setWeapon(arma.key)
+      pivot.add(model.object3D)
+
+      // Anillo de color: lo mismo que distingue a los compañeros en el juego.
+      const anillo = new THREE.Mesh(
+        new THREE.RingGeometry(0.62, 0.7, 32),
+        new THREE.MeshBasicMaterial({
+          color: arma.color,
+          transparent: true,
+          opacity: 0.55,
+          depthWrite: false,
+          side: THREE.DoubleSide,
+        }),
+      )
+      anillo.rotation.x = -Math.PI / 2
+      anillo.position.y = 0.02
+      pivot.add(anillo)
+
+      return { arma, model, pivot }
+    })
+
+    // --- Controles -------------------------------------------------------
+
+    const estado = {
+      speed: 6,
+      spin: 0.35,
+      aim: 0,
+      dual: false,
+      hit: false,
+      auto: true,
+      cam: 'game',
+      dist: 1,
+    }
+
+    function marcar(botones, activo) {
+      for (const b of botones) b.classList.toggle('on', b === activo)
+    }
+
+    const camBtns = [...document.querySelectorAll('[data-cam]')]
+    for (const b of camBtns) {
+      b.onclick = () => { estado.cam = b.dataset.cam; marcar(camBtns, b) }
+    }
+
+    const moveBtns = [...document.querySelectorAll('[data-move]')]
+    for (const b of moveBtns) {
+      b.onclick = () => { estado.speed = Number(b.dataset.move); marcar(moveBtns, b) }
+    }
+
+    const spin = document.getElementById('spin')
+    spin.oninput = () => {
+      estado.spin = Number(spin.value)
+      document.getElementById('spinval').textContent = spin.value
+    }
+
+    const aim = document.getElementById('aim')
+    aim.oninput = () => {
+      estado.aim = Number(aim.value) * Math.PI / 180
+      document.getElementById('aimval').textContent = aim.value
+    }
+
+    const btnDual = document.getElementById('dual')
+    btnDual.onclick = () => {
+      estado.dual = !estado.dual
+      btnDual.classList.toggle('on', estado.dual)
+      // Solo la pistola tiene pose dual: setDual devuelve false si no aplica.
+      for (const s of soldados) s.model.setDual(estado.dual)
+    }
+
+    const btnHit = document.getElementById('hit')
+    btnHit.onclick = () => {
+      estado.hit = !estado.hit
+      btnHit.classList.toggle('on', estado.hit)
+      for (const s of soldados) s.model.setHit(estado.hit)
+    }
+
+    const btnAuto = document.getElementById('auto')
+    btnAuto.onclick = () => {
+      estado.auto = !estado.auto
+      btnAuto.classList.toggle('on', estado.auto)
+    }
+
+    document.getElementById('fire').onclick = disparar
+    function disparar() {
+      for (const s of soldados) s.model.recoil(1)
+    }
+
+    addEventListener('wheel', (e) => {
+      estado.dist = THREE.MathUtils.clamp(estado.dist + Math.sign(e.deltaY) * 0.08, 0.3, 3)
+    }, { passive: true })
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight
+      camera.updateProjectionMatrix()
+      renderer.setSize(innerWidth, innerHeight)
+    })
+
+    // --- Loop ------------------------------------------------------------
+
+    // Cadencias reales de WEAPON_DEFS: así el retroceso se ve al ritmo que se
+    // va a ver en la partida, que es la mitad de lo que hay que juzgar.
+    const CADENCIA = { PISTOL: 0.42, SHOTGUN: 0.95, SMG: 0.13 }
+    const relojes = { PISTOL: 0, SHOTGUN: 0, SMG: 0 }
+
+    const stats = document.getElementById('stats')
+    const reloj = new THREE.Clock()
+    let acumStats = 0
+
+    function tick() {
+      const delta = Math.min(reloj.getDelta(), 0.1)
+      const t = reloj.getElapsedTime()
+
+      for (const s of soldados) {
+        s.pivot.rotation.y += estado.spin * delta
+        s.model.setAimTwist(estado.aim)
+        s.model.update(delta, estado.speed, estado.speed > 0)
+
+        if (estado.auto) {
+          const k = s.arma.key
+          relojes[k] -= delta
+          if (relojes[k] <= 0) {
+            relojes[k] = CADENCIA[k]
+            s.model.recoil(1)
+          }
+        }
+      }
+
+      if (estado.cam === 'game') {
+        // El encuadre exacto del juego: CONFIG.CAMERA.OFFSET.
+        camera.position.set(0, 9 * estado.dist, 8 * estado.dist)
+        camera.lookAt(0, 1.0, 0)
+      } else if (estado.cam === 'close') {
+        camera.position.set(Math.sin(t * 0.15) * 4 * estado.dist, 1.6, 4.2 * estado.dist)
+        camera.lookAt(0, 1.0, 0)
+      } else if (estado.cam === 'free') {
+        // La maneja la consola: `lab.mirar(x, y, z, haciaX, haciaY, haciaZ)`.
+        // Sirve para encuadrar una pieza concreta y compararla entre versiones.
+      } else {
+        camera.position.set(0, 11 * estado.dist, 0.001)
+        camera.lookAt(0, 0, 0)
+      }
+
+      renderer.info.reset()
+      renderer.render(scene, camera)
+
+      acumStats += delta
+      if (acumStats > 0.35) {
+        acumStats = 0
+        const info = renderer.info.render
+        // Lo que cuesta UN soldado: solo lo que se dibuja. El modelo lleva
+        // meshes apagados —la segunda pistola, la de la pistolera— y contarlos
+        // daría un número que no paga nadie.
+        let calls = 0
+        let tris = 0
+        soldados[0].model.object3D.traverse((o) => {
+          if (!o.isMesh || !o.visible) return
+          let p = o.parent
+          while (p) { if (!p.visible) return; p = p.parent }
+          calls++
+          tris += o.geometry.attributes.position.count / 3
+        })
+
+        stats.textContent =
+          'escena      ' + info.calls + ' calls · ' + info.triangles.toLocaleString('es') + ' tris\n' +
+          'un soldado  ' + calls + ' calls · ' + Math.round(tris).toLocaleString('es') + ' tris\n' +
+          'armas       ' + soldados.map((s) => s.model.weaponKey.slice(0, 3)).join(' ')
+      }
+
+      requestAnimationFrame(tick)
+    }
+
+    tick()
+
+    // Para poder medir y encuadrar desde la consola del navegador.
+    window.lab = {
+      scene, camera, renderer, soldados, estado,
+      /** Encuadre manual: apaga el movimiento automático de la cámara. */
+      mirar(x, y, z, tx = 0, ty = 1, tz = 0) {
+        estado.cam = 'free'
+        camera.position.set(x, y, z)
+        camera.lookAt(tx, ty, tz)
+      },
+    }
+  </script>
+</body>
+
+</html>
